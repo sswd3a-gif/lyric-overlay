@@ -41,10 +41,11 @@
   #tapBtn.show { display: block; }
   #lines { position: relative; }
   @media (max-width: 1000px) {
-    /* スマホ・タブレットでは動画を画面上部に固定して、下をスクロールしても見え続けるように */
-    #stage { position: sticky; top: 0; z-index: 10; }
-    #stage.pseudo-fs { position: fixed; }
+    /* スマホ・タブレットでは動画＋操作ボタンをページ全体で上部に固定し、歌詞欄をスクロールしても見え続けるように */
+    main > section { position: sticky; top: 0; z-index: 10; background: var(--bg); padding-bottom: 6px; }
+    main > section .row button, main > section .row select { padding: 6px 8px; }
   }
+  @media (min-width: 1001px) { main > section { align-self: start; } }
   @media (max-width: 600px) {
     main { padding: 8px; gap: 8px; }
     :root { --lyric-size: 22px; }
@@ -92,7 +93,10 @@
       <select id="rate"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option></select>
     </div>
 
-    <div class="panel" style="margin-top:12px">
+  </section>
+
+  <aside>
+    <div class="panel">
       <h2>表示スタイル</h2>
       <div class="row">
         <label>文字サイズ</label><input type="range" id="size" min="20" max="90" value="44">
@@ -109,9 +113,6 @@
         <span id="offsetV">0 ms</span>
       </div>
     </div>
-  </section>
-
-  <aside>
     <div class="panel">
       <h2>歌詞を検索（LRCLIB）</h2>
       <div class="row"><input id="qArtist" placeholder="アーティスト" style="flex:1"><input id="qTitle" placeholder="曲名" style="flex:1"></div>
