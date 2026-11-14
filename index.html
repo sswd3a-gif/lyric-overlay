@@ -39,6 +39,12 @@
   #stage.pseudo-fs #exitFs { display: block; }
   #tapBtn { display: none; width: 100%; padding: 18px; font-size: 18px; margin-top: 6px; }
   #tapBtn.show { display: block; }
+  #lines { position: relative; }
+  @media (max-width: 1000px) {
+    /* スマホ・タブレットでは動画を画面上部に固定して、下をスクロールしても見え続けるように */
+    #stage { position: sticky; top: 0; z-index: 10; }
+    #stage.pseudo-fs { position: fixed; }
+  }
   @media (max-width: 600px) {
     main { padding: 8px; gap: 8px; }
     :root { --lyric-size: 22px; }
@@ -280,7 +286,7 @@ function tick() {
     const nx = lines[idx + 1];
     $('next').textContent = $('showNext').checked && nx ? nx.text : '';
     document.querySelectorAll('#lines div').forEach((el, i) => el.classList.toggle('on', i === idx));
-    const on = document.querySelector('#lines div.on'); if (on && !syncMode) on.scrollIntoView({ block: 'nearest' });
+    const on = document.querySelector('#lines div.on'); if (on && !syncMode) scrollListTo(on);
   }
   requestAnimationFrame(tick);
 }
@@ -316,7 +322,12 @@ function stamp() {
   if (syncIdx >= lines.length) return;
   lines[syncIdx].t = Math.max(0, nowSec() - offsetMs / 1000 - 0.15); // 反応遅れを少し補正
   syncIdx++; lastIdx = -2; renderLines(); markSync(); writeBackLrc();
-  const el = $('lines').children[syncIdx]; if (el) el.scrollIntoView({ block: 'center' });
+  const el = $('lines').children[syncIdx]; if (el) scrollListTo(el);
+}
+// ページ全体は動かさず、歌詞一覧の枠の中だけをスクロールする
+function scrollListTo(el) {
+  const box = $('lines');
+  box.scrollTop = el.offsetTop - box.offsetTop - box.clientHeight / 2 + el.clientHeight / 2;
 }
 $('tapBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); stamp(); });
 function writeBackLrc() { $('lyricText').value = toLrc(); }
