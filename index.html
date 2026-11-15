@@ -26,19 +26,22 @@
   #top, #ctrls, main > aside { min-width: 0; }
   input, select, textarea, button { max-width: 100%; min-width: 0; }
   #status, #nowText, #nowTrans, #alignText, #results div, #lines div, #dict, .hint, #cur, #trans, #next { overflow-wrap: anywhere; word-break: normal; }
-  header input#url { min-width: 0 !important; }
+  header input#url { min-width: 0 !important; flex: 1; }
   #stage { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; }
   #stage:fullscreen { border-radius: 0; aspect-ratio: auto; }
   #player, #stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
   #overlay { position: absolute; left: 0; right: 0; bottom: var(--lyric-pos); text-align: center; pointer-events: none; padding: 0 4%; }
   #overlay.top { bottom: auto; top: var(--lyric-pos); }
-  #cur { color: var(--lyric-color); font-size: var(--lyric-size); font-weight: 800; line-height: 1.25;
-         text-shadow: 0 0 6px #000, 0 2px 4px #000, 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
-         transition: opacity .25s; min-height: 1.25em; }
-  #trans { color: var(--trans-color); font-size: calc(var(--lyric-size) * .6); font-weight: 700; margin-top: .2em;
-           text-shadow: 0 0 5px #000, 2px 2px 0 #000, -2px -2px 0 #000; min-height: 1.2em; }
-  #next { color: rgba(255,255,255,.65); font-size: calc(var(--lyric-size) * .5); margin-top: .3em; text-shadow: 0 0 5px #000, 1px 1px 0 #000; }
-  #stage:fullscreen #cur, #stage.pseudo-fs #cur { font-size: calc(var(--lyric-size) * 1.6); }
+  #overlay.middle { bottom: auto; top: 50%; transform: translateY(-50%); }
+  /* 映像の上の複数行：今の行だけ明るく、前後の行は少し暗く（文字の大きさは同じ） */
+  #overlay .ol { color: var(--lyric-color); font-size: var(--lyric-size); font-weight: 800; line-height: 1.25; margin: .12em 0;
+                 text-shadow: 0 0 6px #000, 0 2px 4px #000, 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+                 opacity: .45; transition: opacity .2s; }
+  #overlay .ol.cur { opacity: 1; }
+  #overlay .ol .otr { color: var(--trans-color); font-size: .6em; font-weight: 700; margin-top: .1em; }
+  #stage:fullscreen #overlay .ol, #stage.pseudo-fs #overlay .ol { font-size: calc(var(--lyric-size) * 1.6); }
+  /* 映像を暗くするフィルター（歌詞を読みやすく） */
+  #dimmer { position: absolute; inset: 0; background: #000; opacity: var(--dim, .4); pointer-events: none; }
   /* iPhone Safari は div の全画面化に非対応 → 画面いっぱいに広げる代替表示 */
   #stage.pseudo-fs { position: fixed; inset: 0; z-index: 1000; aspect-ratio: auto; border-radius: 0; }
   #exitFs { display: none; position: absolute; top: 10px; right: 10px; z-index: 2; background: rgba(0,0,0,.55); border: 0; color: #fff; font-size: 18px; }
@@ -143,7 +146,7 @@
 <body>
 <header>
   <h1>🎵 Lyric Overlay</h1>
-  <input id="url" placeholder="① YouTube の URL をここに貼り付け" style="flex:1">
+  <input id="url" placeholder="① YouTube の URL をここに貼り付け">
   <button class="primary" id="loadBtn">▶ 動画を開く</button>
   <button id="fsBtn">⛶ 歌詞つき全画面</button>
 </header>
@@ -153,7 +156,8 @@
   <div id="top">
     <div id="stage">
       <div id="player"></div>
-      <div id="overlay"><div id="cur"></div><div id="trans"></div><div id="next"></div></div>
+      <div id="dimmer"></div>
+      <div id="overlay" class="middle"></div>
       <button id="exitFs">✕</button>
     </div>
     <div id="status"></div>
@@ -244,10 +248,11 @@
     <details class="panel">
       <summary>⚙ 表示の設定（文字の大きさ・色・行数）</summary>
       <div class="row"><label>動画の上の文字</label><input type="range" id="size" min="20" max="90" value="44"></div>
-      <div class="row"><label>文字の位置</label><select id="pos"><option value="bottom">下</option><option value="top">上</option></select><input type="range" id="posv" min="2" max="40" value="8"></div>
+      <div class="row"><label>映像の上の行数</label><select id="ovLines"><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
+      <div class="row"><label>映像の暗さ</label><input type="range" id="dim" min="0" max="90" value="40" style="flex:1"><span id="dimV">40%</span></div>
+      <div class="row"><label>文字の位置</label><select id="pos"><option value="middle" selected>中央</option><option value="bottom">下</option><option value="top">上</option></select><input type="range" id="posv" min="2" max="40" value="8"></div>
       <div class="row"><label>歌詞の色</label><input type="color" id="color" value="#ffffff"><label>和訳の色</label><input type="color" id="tcolor" value="#ffe08a"></div>
-      <div class="row"><label><input type="checkbox" id="showNext" checked> 動画の上に次の行も出す</label></div>
-      <div class="row"><label>動画の下の行数</label><select id="nLines"><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select></div>
+      <div class="row"><label>動画の下の行数</label><select id="nLines"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select><span class="hint">（単語タップ用）</span></div>
       <div class="row"><label>ズレ（細かく）</label><input type="range" id="offset" min="-30000" max="30000" step="50" value="0" style="flex:1"><span id="offsetV">0 ms</span></div>
     </details>
 
@@ -452,10 +457,7 @@ function tick() {
   const idx = currentIndex(t);
   if (idx !== lastIdx) {
     lastIdx = idx;
-    $('cur').textContent = idx >= 0 ? lines[idx].text : '';
-    $('trans').textContent = idx >= 0 && trans[idx] ? trans[idx] : '';
-    const nx = lines[idx + 1];
-    $('next').textContent = $('showNext').checked && nx ? nx.text : '';
+    renderOverlay(idx);
     renderNow(idx);
     document.querySelectorAll('#lines div').forEach((el, i) => el.classList.toggle('on', i === idx));
     const on = document.querySelector('#lines div.on'); if (on && !syncMode) scrollListTo(on);
@@ -514,7 +516,7 @@ function assColor(hex) { const h = hex.replace('#', ''); return `&H00${h.slice(4
 function toSrt() { const a = timed(); return a.map((l, i) => `${i + 1}\n${srtTime(l.t)} --> ${srtTime(endOf(a, i))}\n${l.text}${l.tr ? '\n' + l.tr : ''}\n`).join('\n'); }
 function toAss() {
   const a = timed(), size = Math.round(+$('size').value * 1.5), top = $('pos').value === 'top';
-  const marginV = Math.round(1080 * +$('posv').value / 100), align = top ? 8 : 2;
+  const marginV = Math.round(1080 * +$('posv').value / 100), align = top ? 8 : $('pos').value === 'middle' ? 5 : 2;
   const esc = (s) => s.replace(/[{}]/g, '').replace(/\n/g, '\\N');
   let s = `[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\n` +
     `Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n` +
@@ -542,10 +544,16 @@ document.querySelectorAll('[data-exp]').forEach(b => b.onclick = () => {
 const root = document.documentElement.style;
 $('size').oninput = (e) => root.setProperty('--lyric-size', e.target.value + 'px');
 $('posv').oninput = (e) => root.setProperty('--lyric-pos', e.target.value + '%');
-$('pos').onchange = (e) => $('overlay').classList.toggle('top', e.target.value === 'top');
+function applyPos() {
+  const v = $('pos').value;
+  $('overlay').classList.toggle('top', v === 'top'); $('overlay').classList.toggle('middle', v === 'middle');
+  $('posv').disabled = v === 'middle';
+}
+$('pos').onchange = () => { applyPos(); saveJSON('lo-pos', $('pos').value); };
 $('color').oninput = (e) => root.setProperty('--lyric-color', e.target.value);
 $('tcolor').oninput = (e) => root.setProperty('--trans-color', e.target.value);
-$('showNext').onchange = () => { lastIdx = -2; };
+$('ovLines').onchange = () => { saveJSON('lo-ovlines', +$('ovLines').value); lastIdx = -2; };
+$('dim').oninput = (e) => { root.setProperty('--dim', e.target.value / 100); $('dimV').textContent = e.target.value + '%'; saveJSON('lo-dim', +e.target.value); };
 $('offset').oninput = (e) => setOffset(+e.target.value);
 $('offEarly').onclick = () => setOffset(offsetMs - 500);
 $('offLate').onclick = () => setOffset(offsetMs + 500);
@@ -618,22 +626,41 @@ function wordsInto(container, text, lineIdx) {
   });
 }
 // 動画の下に「前の行・今の行・次の行…」を指定行数ぶん表示（今の行は太字＋和訳）
-function renderNow(idx) {
-  const box = $('nowText'), n = +$('nLines').value;
+// 今の行を中心に n 行ぶんの行番号を返す（3行以上なら前の行を1つ含める）
+function windowLines(idx, n) {
   const sung = []; lines.forEach((l, i) => { if (l.t !== null && l.text) sung.push(i); });
-  if (!sung.length) { box.innerHTML = '<span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span>'; return; }
+  if (!sung.length) return [];
   let k = -1; sung.forEach((li, p) => { if (li <= idx) k = p; });
   let start = k < 0 ? 0 : (n >= 3 ? k - 1 : k);
   start = Math.max(0, Math.min(start, sung.length - n));
+  return sung.slice(start, start + n);
+}
+// 映像の上に複数行を表示（今の行は明るく＋和訳）
+function renderOverlay(idx) {
+  const box = $('overlay'); box.textContent = '';
+  windowLines(idx, +$('ovLines').value).forEach(li => {
+    const d = document.createElement('div'); d.className = 'ol' + (li === idx ? ' cur' : '');
+    d.textContent = lines[li].text;
+    if (li === idx && trans[li]) { const tr = document.createElement('div'); tr.className = 'otr'; tr.textContent = trans[li]; d.appendChild(tr); }
+    box.appendChild(d);
+  });
+}
+function renderNow(idx) {
+  const box = $('nowText'), n = +$('nLines').value;
+  const win = windowLines(idx, n);
+  if (!win.length) { box.innerHTML = '<span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span>'; return; }
   box.textContent = '';
-  sung.slice(start, start + n).forEach(li => {
+  win.forEach(li => {
     const row = document.createElement('div'); row.className = 'ln' + (li === idx ? ' cur' : '');
     const txt = document.createElement('span'); wordsInto(txt, lines[li].text, li); row.appendChild(txt);
     if (li === idx && trans[li]) { const tr = document.createElement('div'); tr.className = 'tr'; tr.textContent = trans[li]; row.appendChild(tr); }
     box.appendChild(row);
   });
 }
-$('nLines').value = loadJSON('lo-nlines', 4);
+$('nLines').value = loadJSON('lo-nlines', 2);
+$('ovLines').value = loadJSON('lo-ovlines', 4);
+$('pos').value = loadJSON('lo-pos', 'middle'); applyPos();
+$('dim').value = loadJSON('lo-dim', 40); root.setProperty('--dim', $('dim').value / 100); $('dimV').textContent = $('dim').value + '%';
 $('nLines').onchange = () => { saveJSON('lo-nlines', +$('nLines').value); lastIdx = -2; };
 function cleanWord(w) {
   return w.toLowerCase().replace(/[’‘`]/g, "'").replace(/^[^a-z']+|[^a-z']+$/g, '').replace(/^'+/, '');
