@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lyric Overlay</title>
+<!-- ホーム画面に追加すると、ブラウザのバーなしのアプリとして起動する（PWA） -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Lyric">
+<meta name="theme-color" content="#0f1115">
 <style>
   :root {
     --bg: #0f1115; --panel: #181b22; --line: #2a2f3a; --text: #e8eaf0; --muted: #8a91a3;
@@ -41,6 +50,9 @@
   #overlay .ol .otr { color: var(--trans-color); font-size: .6em; font-weight: 700; margin-top: .1em; }
   #stage:fullscreen #overlay .ol, #stage.pseudo-fs #overlay .ol { font-size: calc(var(--lyric-size) * 1.6 * var(--fit, 1)); }
   #ver { font-size: 11px; color: var(--muted); margin-left: auto; }
+  #updBar { display: none; background: var(--accent); color: #fff; padding: 8px 12px; text-align: center; font-size: 14px; }
+  #updBar.show { display: block; }
+  #updBar button { margin-left: 8px; background: #fff; color: #1d3f9a; border: 0; font-weight: 700; }
   /* 映像を暗くするフィルター（歌詞を読みやすく） */
   #dimmer { position: absolute; inset: 0; background: #000; opacity: var(--dim, .4); pointer-events: none; }
   /* iPhone Safari は div の全画面化に非対応 → 画面いっぱいに広げる代替表示 */
@@ -145,6 +157,7 @@
 </style>
 </head>
 <body>
+<div id="updBar">新しい版があります<button id="updBtn">更新する</button></div>
 <header>
   <h1>🎵 Lyric Overlay</h1>
   <input id="url" placeholder="① YouTube の URL をここに貼り付け">
@@ -200,7 +213,7 @@
 
   <aside>
     <details class="panel" id="helpBox">
-      <summary>❓ 使い方 <span id="ver">版: 2026-11-15f</span></summary>
+      <summary>❓ 使い方 <span id="ver">版: 2026-11-15g</span></summary>
       <ol class="help">
         <li>いちばん上に YouTube の URL を貼って「<b>▶ 動画を開く</b>」</li>
         <li>下の「<b>② 歌詞をさがす</b>」で「🔍 歌詞を検索」→ <b>⏱</b> の付いた候補をタップ</li>
@@ -955,6 +968,20 @@ function showCard(answer) {
 renderVocab();
 // はじめて（プレイリストが空）のときは使い方を開いておく
 if (!playlist.length) $('helpBox').open = true;
+
+/* ---------- 新しい版のお知らせ（ホーム画面アプリには再読み込みボタンが無いため） ---------- */
+const APP_VER = ($('ver').textContent.match(/版:\s*(\S+)/) || [])[1];
+let newVer = null;
+async function checkUpdate() {
+  try {
+    const r = await fetch('./index.html?check=' + Date.now(), { cache: 'no-store' });
+    const m = (await r.text()).match(/id="ver">版:\s*([^<\s]+)/);
+    if (m && APP_VER && m[1] !== APP_VER) { newVer = m[1]; $('updBar').classList.add('show'); }
+  } catch {}
+}
+$('updBtn').onclick = () => location.replace('./?v=' + encodeURIComponent(newVer || Date.now()));
+checkUpdate();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
 </script>
 <script src="https://www.youtube.com/iframe_api"></script>
 </body>
