@@ -120,7 +120,16 @@
       <button id="offEarly" title="歌詞の表示を0.5秒早める">◀ 歌詞を早く</button>
       <span id="offQ" style="min-width:56px;text-align:center">±0.0秒</span>
       <button id="offLate" title="歌詞の表示を0.5秒遅らせる">歌詞を遅く ▶</button>
-      <button id="hereBtn" title="次の行が歌い始めた瞬間に押すと、ズレを自動で合わせます">🎯 次の行が今！</button>
+      <button id="hereBtn">🎯 ズレを合わせる</button>
+    </div>
+    <div id="alignBox" class="panel" style="display:none;margin:6px 0 0;border-color:var(--accent)">
+      <div class="hint">① 動画を再生したまま、この歌詞が<b>歌われるのを待つ</b></div>
+      <div id="alignText" style="font-size:18px;font-weight:700;margin:4px 0 8px"></div>
+      <button id="alTap" class="primary" style="width:100%;padding:16px;font-size:18px">② 歌い始めた瞬間にここをタップ！</button>
+      <div class="row" style="margin-top:6px">
+        <button id="alPrev">◀ 前の行にする</button><button id="alNext">次の行にする ▶</button><button id="alCancel">やめる</button>
+      </div>
+      <div class="hint">もう過ぎてしまったら「次の行にする」で、これから歌われる行を選んでください</div>
     </div>
     <div id="nowLine">
       <div id="nowText"><span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span></div>
@@ -463,14 +472,31 @@ $('showNext').onchange = () => { lastIdx = -2; };
 $('offset').oninput = (e) => setOffset(+e.target.value);
 $('offEarly').onclick = () => setOffset(offsetMs - 500);
 $('offLate').onclick = () => setOffset(offsetMs + 500);
+// ズレ合わせ：①これから歌われる行を表示 → ②その行が聞こえた瞬間にタップ → その差をズレとして設定
+let alignIdx = -1;
+function prevTimed(i) { for (let j = i - 1; j >= 0; j--) if (lines[j].t !== null && lines[j].text) return j; return -1; }
+function nextSung(i) { for (let j = i + 1; j < lines.length; j++) if (lines[j].t !== null && lines[j].text) return j; return -1; }
+function showAlign() {
+  $('alignBox').style.display = alignIdx >= 0 ? 'block' : 'none';
+  if (alignIdx >= 0) $('alignText').textContent = '「' + lines[alignIdx].text + '」';
+}
 $('hereBtn').onclick = () => {
-  if (!lines.length) return status('先に歌詞を読み込んでください');
+  if (alignIdx >= 0) { alignIdx = -1; return showAlign(); }
+  if (!lines.some(l => l.t !== null)) return status('先に時刻付きの歌詞を読み込んでください');
   const i = currentIndex(nowSec() - offsetMs / 1000);
-  const j = i < 0 ? lines.findIndex(l => l.t !== null) : nextTimed(i);
-  if (j < 0) return status('次の行がありません');
-  setOffset((nowSec() - lines[j].t) * 1000);
-  status(`ズレを ${(offsetMs / 1000).toFixed(1)} 秒に合わせました。「★ 保存」でこの曲の設定として残せます`);
+  alignIdx = nextSung(i); if (alignIdx < 0) alignIdx = prevTimed(lines.length);
+  if (player && player.getPlayerState && player.getPlayerState() !== 1) player.playVideo();
+  showAlign();
 };
+$('alNext').onclick = () => { const j = nextSung(alignIdx); if (j >= 0) { alignIdx = j; showAlign(); } };
+$('alPrev').onclick = () => { const j = prevTimed(alignIdx); if (j >= 0) { alignIdx = j; showAlign(); } };
+$('alCancel').onclick = () => { alignIdx = -1; showAlign(); };
+$('alTap').addEventListener('pointerdown', (e) => {
+  e.preventDefault(); if (alignIdx < 0) return;
+  setOffset((nowSec() - 0.15 - lines[alignIdx].t) * 1000); // 0.15秒 = タップの反応遅れ補正
+  alignIdx = -1; showAlign();
+  status(`✅ ズレを ${(offsetMs / 1000).toFixed(1)} 秒に合わせました。合っていたら「★ 保存」でこの曲に記録できます`);
+});
 function status(s) { $('status').textContent = s; }
 
 /* ---------- 学習用コントロール ---------- */
