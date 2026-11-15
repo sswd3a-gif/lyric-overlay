@@ -36,8 +36,8 @@
   /* 映像の上の複数行：今の行だけ明るく、前後の行は少し暗く（文字の大きさは同じ） */
   #overlay .ol { color: var(--lyric-color); font-size: calc(var(--lyric-size) * var(--fit, 1)); font-weight: 800; line-height: 1.25; margin: .12em 0;
                  text-shadow: 0 0 6px #000, 0 2px 4px #000, 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
-                 opacity: .45; transition: opacity .2s; }
-  #overlay .ol.cur { opacity: 1; }
+                 animation: olIn .25s ease; }
+  @keyframes olIn { from { opacity: 0; } to { opacity: 1; } }
   #overlay .ol .otr { color: var(--trans-color); font-size: .6em; font-weight: 700; margin-top: .1em; }
   #stage:fullscreen #overlay .ol, #stage.pseudo-fs #overlay .ol { font-size: calc(var(--lyric-size) * 1.6 * var(--fit, 1)); }
   #ver { font-size: 11px; color: var(--muted); margin-left: auto; }
@@ -200,7 +200,7 @@
 
   <aside>
     <details class="panel" id="helpBox">
-      <summary>❓ 使い方 <span id="ver">版: 2026-11-15e</span></summary>
+      <summary>❓ 使い方 <span id="ver">版: 2026-11-15f</span></summary>
       <ol class="help">
         <li>いちばん上に YouTube の URL を貼って「<b>▶ 動画を開く</b>」</li>
         <li>下の「<b>② 歌詞をさがす</b>」で「🔍 歌詞を検索」→ <b>⏱</b> の付いた候補をタップ</li>
@@ -637,12 +637,22 @@ function windowLines(idx, n) {
   return sung.slice(start, start + n);
 }
 // 映像の上に複数行を表示（今の行は明るく＋和訳）
+// 映像の上は「n 行ずつのページ」で表示し、ページの最初の行が歌われ始めたら次のページへまとめて切り替える
+let lastPageKey = null;
 function renderOverlay(idx) {
+  const n = +$('ovLines').value;
+  const sung = []; lines.forEach((l, i) => { if (l.t !== null && l.text) sung.push(i); });
+  let k = -1; sung.forEach((li, p) => { if (li <= idx) k = p; });
+  const page = Math.max(0, Math.floor(k / n));
+  const show = sung.slice(page * n, page * n + n);
+  const key = n + '\n' + show.map(li => lines[li].text + '\t' + (trans[li] || '')).join('\n');
+  if (key === lastPageKey) return;   // 同じページなら描き直さない（ちらつき防止）
+  lastPageKey = key;
   const box = $('overlay'); box.textContent = '';
-  windowLines(idx, +$('ovLines').value).forEach(li => {
-    const d = document.createElement('div'); d.className = 'ol' + (li === idx ? ' cur' : '');
+  show.forEach(li => {
+    const d = document.createElement('div'); d.className = 'ol';
     d.textContent = lines[li].text;
-    if (li === idx && trans[li]) { const tr = document.createElement('div'); tr.className = 'otr'; tr.textContent = trans[li]; d.appendChild(tr); }
+    if (trans[li]) { const tr = document.createElement('div'); tr.className = 'otr'; tr.textContent = trans[li]; d.appendChild(tr); }
     box.appendChild(d);
   });
   fitOverlay();
