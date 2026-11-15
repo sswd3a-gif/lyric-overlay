@@ -282,7 +282,7 @@
     <div id="empty">
       <div class="big">🎬</div>
       <h2>MV を歌詞つきで見よう</h2>
-      <p>YouTube で好きな洋楽の MV を開き、<br>「共有」→「コピー」してから下のボタンを押してください。<br>歌詞は自動でさがします。</p>
+      <p>YouTube で好きな洋楽の MV を開き「共有」→「コピー」。<br>下の入力欄を長押しして「ペースト」すると、すぐに開きます。<br>歌詞は自動でさがします。</p>
       <button class="btn btn-primary" data-paste>
         <svg class="i" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6"/></svg>コピーした URL を貼り付け
       </button>
@@ -419,7 +419,7 @@
       <li>下の歌詞の<b>単語をタップ</b>で意味。<b>単語帳に追加</b>して「カードで復習」</li>
       <li>気に入った曲は右上の <b>☆</b> でプレイリストに保存</li>
     </ol></div>
-    <div class="sfoot"><span id="ver">版: 2026-11-15i</span></div></div>
+    <div class="sfoot"><span id="ver">版: 2026-11-15j</span></div></div>
   </div>
 </section>
 
@@ -633,12 +633,29 @@ function openFromText(text) {
   if (!id) return toast('YouTube の URL が見つかりませんでした');
   closeSheet(); showTab('play'); loadVideo(id, false);
 }
+// 「貼り付け」ボタン：クリップボードを読めないブラウザ（Brave など）では入力欄に誘導する
 document.querySelectorAll('[data-paste]').forEach(b => b.onclick = async () => {
-  try { openFromText(await navigator.clipboard.readText()); }
-  catch { toast('貼り付けできませんでした。下の欄に URL を入力してください'); }
+  const field = b.closest('.sheet') ? $('urlSheet') : $('urlInline');
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.readText) throw new Error('unsupported');
+    const text = await Promise.race([navigator.clipboard.readText(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000))]);
+    if (!parseId(text)) throw new Error('no url');
+    openFromText(text);
+  } catch {
+    field.value = ''; field.focus();
+    toast('下の入力欄を長押しして「ペースト」してください（貼ると自動で開きます）', 4500);
+  }
 });
 document.querySelectorAll('[data-openfrom]').forEach(b => b.onclick = () => openFromText($(b.dataset.openfrom).value));
-['urlInline', 'urlSheet'].forEach(id => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') openFromText(e.target.value); }));
+['urlInline', 'urlSheet'].forEach(id => {
+  const el = $(id);
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') openFromText(e.target.value); });
+  // YouTube の URL が貼り付けられたら「開く」を押さなくても自動で開く
+  el.addEventListener('input', () => {
+    const v = el.value;
+    if (/youtu\.?be/i.test(v) && parseId(v)) { openFromText(v); el.value = ''; el.blur(); }
+  });
+});
 $('openBtn').onclick = () => openSheet('sheet-open');
 
 function guessTitle(d) {
