@@ -238,6 +238,23 @@
   .listicon { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: var(--bg3); color: var(--label3); display: grid; place-items: center; flex: none; }
   .check { color: var(--tint); width: 22px !important; height: 22px !important; }
 
+  /* 単語帳の単語・熟語に印（別の曲でまた出会ったとき） */
+  #nowText .kw { text-decoration: underline; text-decoration-color: var(--trans-ui); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+  #nowText .kp { text-decoration: underline; text-decoration-color: var(--tint); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+  #overlay .kw { text-decoration: underline; text-decoration-color: var(--trans-color); text-decoration-thickness: .07em; text-underline-offset: .16em; }
+  #overlay .kp { text-decoration: underline; text-decoration-color: var(--tint); text-decoration-thickness: .07em; text-underline-offset: .16em; }
+  /* 熟語の範囲えらび */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+  .chip { padding: 6px 11px; border-radius: 16px; background: var(--bg2); font-size: 16px; }
+  .chip.on { background: var(--tint); color: #fff; }
+  .phprev { font-size: 24px; font-weight: 800; margin: 4px 0 2px; overflow-wrap: anywhere; }
+  /* おすすめ */
+  .recmain { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+  .cover { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; background: var(--bg3); flex: none; }
+  .prevbtn { width: 36px; height: 36px; border-radius: 50%; background: var(--fill); color: var(--tint); display: grid; place-items: center; flex: none; }
+  .prevbtn svg { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+  .reason { color: var(--tint); }
+
   /* 単語帳 */
   .ja-inline { color: var(--trans-ui); margin-left: 8px; font-size: 15px; }
 
@@ -352,6 +369,10 @@
     <div id="plIndex">
       <div class="nav"><div class="navrow"><span></span><button class="navbtn" id="plNew">＋ 新規</button></div><h1>プレイリスト</h1></div>
       <div class="section"><div class="list" id="plLists"></div></div>
+      <div class="section"><div class="list">
+        <button class="cell" id="recOpen"><div class="listicon" style="color:var(--tint)"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l1.9 4.6 4.6 1.9-4.6 1.9L12 16l-1.9-4.6-4.6-1.9 4.6-1.9zM18.5 15l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg></div>
+          <div class="cmain"><div class="ctitle">おすすめの曲</div><div class="csub">プレイリストの曲から好きそうな曲を提案</div></div><svg class="i chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div></div>
       <div class="section">
         <div class="list">
           <label class="cell"><div class="cmain">曲が終わったら次の曲へ</div><input type="checkbox" class="switch" id="autoNext"></label>
@@ -413,7 +434,8 @@
     <div class="section"><div class="list">
       <div class="cell"><div class="cmain">行数</div><span class="cval" id="nLinesV"></span>
         <span class="stepper"><button data-k="nLines" data-d="-1">−</button><button data-k="nLines" data-d="1">＋</button></span></div>
-    </div><div class="sfoot">ここの単語をタップすると意味が見られ、単語帳に追加できます。</div></div>
+      <label class="cell"><div class="cmain">単語帳の単語・熟語に下線</div><input type="checkbox" class="switch" id="markKnown"></label>
+    </div><div class="sfoot">ここの単語をタップすると意味が見られ、単語帳に追加できます。単語帳に入れた単語は<b style="color:var(--trans-ui)">黄色</b>、熟語は<b style="color:var(--tint)">アクセント色</b>の下線で、ほかの曲に出てきたときも分かります（映像の上の歌詞にも付きます）。</div></div>
 
     <div class="shdr">データ</div>
     <div class="section"><div class="list">
@@ -437,9 +459,12 @@
       <li>違う歌詞が出たら「歌詞」の <b>変更</b> から選び直す</li>
       <li>ズレていたら <b>タイミング調整</b> →「自動で合わせる」</li>
       <li>下の歌詞の<b>単語をタップ</b>で意味。<b>単語帳に追加</b>して「カードで復習」</li>
+      <li>単語をタップ →「<b>熟語として登録</b>」で、続く単語も含めたフレーズを登録</li>
+      <li>単語帳の単語・熟語は、ほかの曲でも<b>下線</b>で教えてくれます</li>
+      <li>「リスト」の <b>おすすめの曲</b> で、好みに近い曲が見つかります</li>
       <li>気に入った曲は右上の <b>☆</b> でプレイリストに保存</li>
     </ol></div>
-    <div class="sfoot"><span id="ver">版: 2026-11-15l</span></div></div>
+    <div class="sfoot"><span id="ver">版: 2026-11-15m</span></div></div>
   </div>
 </section>
 
@@ -471,6 +496,14 @@
   <div class="list" id="addplList"></div>
   <div class="list" style="margin-top:12px"><button class="cell blue" id="addplNew">＋ 新規プレイリスト…</button></div>
   <div class="sfoot" style="margin:10px 0 0">タップでリストに入れる／外す。歌詞・和訳・タイミングも一緒に保存されます。</div>
+</div>
+
+<div class="sheet" id="sheet-rec">
+  <div class="grab"></div>
+  <div class="shead"><h3>おすすめの曲</h3><button class="done" data-close>閉じる</button></div>
+  <div class="list" id="recList"></div>
+  <button class="btn btn-gray" id="recMore" style="margin-top:12px">別の候補を出す</button>
+  <div class="sfoot" style="margin:10px 0 0">曲をタップすると YouTube の検索が開きます。MV の「共有」→「コピー」して、このアプリに貼り付けてください。▶ で30秒だけ試聴できます。タイミング付きの歌詞がある曲だけを出しています。</div>
 </div>
 
 <div class="sheet short" id="sheet-dict">
@@ -545,7 +578,7 @@ let lines = [], trans = [], offsetMs = 0, lastIdx = -2, loopIdx = -1, curVid = n
 let syncMode = false, syncIdx = 0, pendingSeek = null, rate = 1;
 
 /* ---------- 設定 ---------- */
-const DEF = { ovLines: 4, size: 24, dim: 40, pos: 'middle', color: '#ffffff', tcolor: '#ffe08a', nLines: 2, autoNext: true, shuffle: false, theme: 'system', accent: 'orange' };
+const DEF = { ovLines: 4, size: 24, dim: 40, pos: 'middle', color: '#ffffff', tcolor: '#ffe08a', nLines: 2, autoNext: true, shuffle: false, markKnown: true, theme: 'system', accent: 'orange' };
 const LIM = { ovLines: [1, 8], nLines: [0, 6] };
 let set = Object.assign({}, DEF, loadJSON('lo-set', {}));
 function saveSet() { saveJSON('lo-set', set); applySet(); }
@@ -564,7 +597,7 @@ function applySet() {
   $('dimR').value = set.dim; $('dimV').textContent = set.dim + '%';
   document.querySelectorAll('#posSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === set.pos));
   $('colorI').value = set.color; $('tcolorI').value = set.tcolor;
-  $('autoNext').checked = set.autoNext; $('shuffle').checked = set.shuffle;
+  $('autoNext').checked = set.autoNext; $('shuffle').checked = set.shuffle; $('markKnown').checked = set.markKnown;
   lastIdx = -2; lastPageKey = null; updatePlayUI();
 }
 document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
@@ -580,6 +613,7 @@ $('colorI').oninput = (e) => { set.color = e.target.value; saveSet(); };
 $('tcolorI').oninput = (e) => { set.tcolor = e.target.value; saveSet(); };
 $('autoNext').onchange = (e) => { set.autoNext = e.target.checked; saveSet(); };
 $('shuffle').onchange = (e) => { set.shuffle = e.target.checked; saveSet(); };
+$('markKnown').onchange = (e) => { set.markKnown = e.target.checked; saveSet(); };
 
 /* ---------- タブ ---------- */
 function showTab(name) {
@@ -603,6 +637,7 @@ function closeSheet() {
   if (s.id === 'sheet-dict') onDictClosed();
   if (s.id === 'sheet-timing') { alignIdx = -1; showAlign(); }
   if (s.id === 'sheet-edit' && syncMode) toggleSync();
+  if (s.id === 'sheet-rec') stopPreview();
 }
 $('backdrop').onclick = closeSheet;
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheet);
@@ -888,12 +923,12 @@ function renderOverlay(idx) {
   const n = set.ovLines, sung = sungLines();
   let k = -1; sung.forEach((li, p) => { if (li <= idx) k = p; });
   const page = Math.max(0, Math.floor(k / n)), show = sung.slice(page * n, page * n + n);
-  const key = n + '\n' + show.map(li => lines[li].text + '\t' + (trans[li] || '')).join('\n');
+  const key = n + '\n' + vocabVer + '\n' + show.map(li => lines[li].text + '\t' + (trans[li] || '')).join('\n');
   if (key === lastPageKey) return;      // 同じページなら描き直さない（ちらつき防止）
   lastPageKey = key;
   const box = $('overlay'); box.textContent = '';
   show.forEach(li => {
-    const d = document.createElement('div'); d.className = 'ol'; d.textContent = lines[li].text;
+    const d = document.createElement('div'); d.className = 'ol'; markedInto(d, lines[li].text, null);
     if (trans[li]) { const tr = document.createElement('div'); tr.className = 'otr'; tr.textContent = trans[li]; d.appendChild(tr); }
     box.appendChild(d);
   });
@@ -907,16 +942,33 @@ function fitOverlay() {
 }
 
 /* ---------- 動画の下の歌詞（単語タップ用） ---------- */
-function wordsInto(container, text, lineIdx) {
+// 歌詞の1行を単語ごとの span にする。単語帳の単語（kw）・熟語（kp）には下線を付ける
+// lineIdx が null のとき（映像の上）はタップしない表示用
+function markedInto(container, text, lineIdx) {
   container.textContent = '';
-  text.split(/(\s+)/).forEach(tok => {
-    if (!tok) return;
-    if (/^\s+$/.test(tok)) { container.appendChild(document.createTextNode(tok)); return; }
-    const s = document.createElement('span'); s.className = 'w'; s.textContent = tok;
-    s.addEventListener('click', (e) => { if (syncMode) return; e.stopPropagation(); lookup(tok, s, lineIdx); });
-    container.appendChild(s);
+  const toks = text.split(/(\s+)/).filter(Boolean), isWs = (t) => /^\s+$/.test(t);
+  const marks = set.markKnown ? findMarks(toks.filter(t => !isWs(t))) : { word: [], phrase: [] };
+  let wi = -1, phBox = null, phEnd = -1;
+  toks.forEach(tok => {
+    if (isWs(tok)) { (phBox || container).appendChild(document.createTextNode(tok)); return; }
+    wi++;
+    const ph = marks.phrase[wi];
+    if (ph && ph.start === wi) { phBox = document.createElement('span'); phBox.className = 'kp'; phEnd = ph.end; container.appendChild(phBox); }
+    const s = document.createElement('span'); s.textContent = tok;
+    if (!ph && marks.word[wi]) s.className = 'kw';
+    if (lineIdx != null) {
+      s.classList.add('w');
+      const myWi = wi, entry = ph ? ph.v : null;
+      s.addEventListener('click', (e) => {
+        if (syncMode) return; e.stopPropagation();
+        if (entry) { pauseForSheet(); showVocabDict(entry, s); } else lookup(tok, s, lineIdx, myWi);
+      });
+    }
+    (phBox || container).appendChild(s);
+    if (phBox && wi === phEnd) { phBox = null; phEnd = -1; }
   });
 }
+function wordsInto(container, text, lineIdx) { markedInto(container, text, lineIdx); }
 function renderNow(idx) {
   const box = $('nowText'), n = set.nLines; if (!n) return;
   const sung = sungLines();
@@ -1048,9 +1100,9 @@ function simplify(data) {
 const dictCache = loadJSON('lo-dict', {});
 let resumeAfterDict = false, dictReq = 0, lookupCtx = null;
 function pauseForSheet() { if (player && player.getPlayerState && player.getPlayerState() === 1) { player.pauseVideo(); resumeAfterDict = true; } }
-async function lookup(raw, el, lineIdx) {
+async function lookup(raw, el, lineIdx, wordIdx) {
   const w = cleanWord(raw); if (!w) return;
-  lookupCtx = { lineIdx, vid: curVid };
+  lookupCtx = { lineIdx, wordIdx, vid: curVid };
   document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel')); if (el) el.classList.add('sel');
   pauseForSheet(); openSheet('sheet-dict');
   $('dictBody').innerHTML = `<div class="dword">${esc(w)}</div><div class="dsub">調べています…</div>`;
@@ -1067,21 +1119,26 @@ function renderDict(r, v) {
   const i = r.info;
   let h = `<div style="display:flex;align-items:center;gap:10px"><div class="dword">${esc(r.w)}</div>` +
           (i && i.audio ? `<button class="roundbtn" id="dictAudio" aria-label="発音"><svg class="i" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>` : '') + `</div>`;
-  const sub = [r.base !== r.w ? `元の形：${esc(r.base)}` : '', i && i.phonetic ? esc(i.phonetic) : ''].filter(Boolean).join('　');
+  const sub = [r.base !== r.w && !(v && v.phrase) ? `元の形：${esc(r.base)}` : '', i && i.phonetic ? esc(i.phonetic) : ''].filter(Boolean).join('　');
   if (sub) h += `<div class="dsub">${sub}</div>`;
   h += r.ja ? `<div class="dja">${esc(r.ja)}</div>` : `<div class="dsub" style="margin:6px 0 12px">日本語訳は取得できませんでした</div>`;
   if (v) {
     h += `<div class="actions">` + (v.vid ? `<button class="btn btn-gray" id="vJump">▶ この場面を聞く</button>` : '') +
          `<button class="btn btn-gray" id="vLearn">${v.learned ? '↩ まだ覚えてない' : '✓ 覚えた'}</button></div>`;
     if (v.line) h += `<div class="dsub" style="margin:8px 0">“${esc(v.line)}”${v.song ? ' — ' + esc(v.song) : ''}</div>`;
+    if (v.phrase) h += `<div class="dsub" style="margin-top:12px">単語を調べる</div><div class="chips">` +
+      v.w.split(' ').map((x, k) => `<button class="chip" data-pw="${k}">${esc(x)}</button>`).join('') + `</div>`;
   } else {
     const saved = vocab.some(x => x.w === r.base);
-    h += `<div class="actions"><button class="btn ${saved ? 'btn-gray' : 'btn-primary'}" id="vocabAdd">${saved ? '✓ 単語帳に登録済み' : '＋ 単語帳に追加'}</button></div>`;
+    const L = lookupCtx && lookupCtx.lineIdx != null && lines[lookupCtx.lineIdx];
+    const canPh = L && lineWords(L.text).length > 1;
+    h += `<div class="actions"><button class="btn ${saved ? 'btn-gray' : 'btn-primary'}" id="vocabAdd">${saved ? '✓ 単語帳に登録済み' : '＋ 単語帳に追加'}</button>` +
+         (canPh ? `<button class="btn btn-gray" id="phStart">＋ 熟語として登録…</button>` : '') + `</div>`;
   }
   if (i) i.meanings.forEach(m => {
     h += `<div class="dpos">${esc(POS_JA[m.pos] || m.pos)}</div><ol>` + m.defs.map(d => `<li>${esc(d.d)}${d.ex ? `<div class="dex">${esc(d.ex)}</div>` : ''}</li>`).join('') + `</ol>`;
   });
-  else h += `<div class="dsub" style="margin-top:10px">英英辞書に見つかりませんでした（固有名詞・スラング・省略形かもしれません）</div>`;
+  else if (!(v && v.phrase)) h += `<div class="dsub" style="margin-top:10px">英英辞書に見つかりませんでした（固有名詞・スラング・省略形かもしれません）</div>`;
   if (v) h += `<div class="actions" style="margin-top:16px"><button class="btn btn-gray" id="vDel" style="color:var(--red)">単語帳から削除</button></div>`;
   $('dictBody').innerHTML = h;
   if (i && i.audio) $('dictAudio').onclick = () => new Audio(i.audio).play().catch(() => {});
@@ -1089,7 +1146,13 @@ function renderDict(r, v) {
     if ($('vJump')) $('vJump').onclick = () => { closeSheet(); jumpTo(v); };
     $('vLearn').onclick = () => { v.learned = !v.learned; saveVocab(); renderDict(r, v); };
     $('vDel').onclick = () => { if (confirm(`「${v.w}」を単語帳から削除しますか？`)) { vocab.splice(vocab.indexOf(v), 1); saveVocab(); closeSheet(); } };
-  } else $('vocabAdd').onclick = () => { if (!vocab.some(x => x.w === r.base)) { addVocab(r); renderDict(r, null); } };
+    document.querySelectorAll('[data-pw]').forEach(btn => btn.onclick = () => {
+      const keep = resumeAfterDict; lookup(v.w.split(' ')[+btn.dataset.pw], null, null); resumeAfterDict = keep;
+    });
+  } else {
+    $('vocabAdd').onclick = () => { if (!vocab.some(x => x.w === r.base)) { addVocab(r); renderDict(r, null); } };
+    if ($('phStart')) $('phStart').onclick = () => phraseBuilder(r);
+  }
 }
 function onDictClosed() {
   document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel'));
@@ -1097,16 +1160,85 @@ function onDictClosed() {
   resumeAfterDict = false;
 }
 
-/* ---------- 単語帳 ---------- */
-let vocab = loadJSON('lo-vocab', []), vocabFilter = 'todo';
-function saveVocab() { saveJSON('lo-vocab', vocab); renderVocab(); }
-function addVocab(r) {
-  const c = lookupCtx || {}, li = c.lineIdx != null ? lines[c.lineIdx] : null;
-  vocab.push({ w: r.base, raw: r.w, ja: r.ja || '', info: r.info || null, line: li ? li.text : '', trans: (li && trans[c.lineIdx]) || '',
-               vid: c.vid || null, t: li && li.t !== null ? li.t + offsetMs / 1000 : null, song: songName(), added: Date.now(), learned: false, reviews: 0 });
-  saveVocab(); toast(`「${r.base}」を単語帳に追加しました`);
+/* ---------- 熟語として登録（行の中の続く単語を選ぶ） ---------- */
+function lineWords(text) { return text.split(/\s+/).filter(Boolean); }
+function phraseKey(ws) { return ws.map(cleanWord).filter(Boolean).join(' '); }
+const trimP = (t) => t.replace(/^[^\w']+|[^\w']+$/g, '');
+function phraseBuilder(r) {
+  const c = lookupCtx; if (!c || c.lineIdx == null || !lines[c.lineIdx]) return;
+  const ws = lineWords(lines[c.lineIdx].text);
+  let a = Math.max(0, Math.min(c.wordIdx || 0, ws.length - 1)), b = a, ja = '', jaReq = 0, jaTimer = null;
+  if (b + 1 < ws.length) b++; else if (a > 0) a--;   // 最初は隣の単語まで選んでおく
+  const surf = () => trimP(ws.slice(a, b + 1).join(' ')), key = () => phraseKey(ws.slice(a, b + 1));
+  const fetchPh = () => {
+    clearTimeout(jaTimer); const my = ++jaReq, q = surf();
+    jaTimer = setTimeout(async () => {
+      const t = await fetchJa(q); if (my !== jaReq) return;
+      ja = t; const el = $('phJa'); if (el) el.innerHTML = t ? esc(t) : '<span class="dsub">訳は取得できませんでした</span>';
+    }, 350);
+  };
+  const draw = () => {
+    const saved = vocab.some(x => x.w === key());
+    $('dictBody').innerHTML = `<div class="dsub">続く単語をタップで範囲を広げる・端をタップで縮める</div>` +
+      `<div class="chips">${ws.map((w, k) => `<button class="chip${k >= a && k <= b ? ' on' : ''}" data-k="${k}">${esc(w)}</button>`).join('')}</div>` +
+      `<div class="phprev">${esc(surf())}</div><div class="dja" id="phJa">${ja ? esc(ja) : '<span class="dsub">訳を調べています…</span>'}</div>` +
+      `<div class="actions"><button class="btn btn-gray" id="phBack">‹ 戻る</button>` +
+      `<button class="btn ${saved ? 'btn-gray' : 'btn-primary'}" id="phSave">${saved ? '✓ 登録済み' : '＋ 熟語として登録'}</button></div>`;
+    $('dictBody').querySelectorAll('[data-k]').forEach(btn => btn.onclick = () => {
+      const k = +btn.dataset.k;
+      if (k < a) a = k; else if (k > b) b = k;
+      else if (k === a && a < b) a++; else if (k === b && b > a) b--; else a = b = k;
+      ja = ''; draw(); fetchPh();
+    });
+    $('phBack').onclick = () => { clearTimeout(jaTimer); jaReq++; renderDict(r, null); };
+    $('phSave').onclick = () => {
+      if (saved) return;
+      if (key().split(' ').length < 2) return toast('2語以上を選んでください');
+      addVocab({ base: key(), w: surf(), ja, info: null }, { phrase: true }); draw();
+    };
+  };
+  draw(); fetchPh();
 }
-function showVocabDict(v) { lookupCtx = null; openSheet('sheet-dict'); renderDict(dictCache[v.raw] || { w: v.raw || v.w, base: v.w, ja: v.ja, info: v.info }, v); }
+
+/* ---------- 単語帳 ---------- */
+let vocab = loadJSON('lo-vocab', []), vocabFilter = 'todo', vocabVer = 0, vIndex = null;
+function saveVocab() { saveJSON('lo-vocab', vocab); vIndex = null; vocabVer++; lastIdx = -2; lastPageKey = null; renderVocab(); }
+// 単語帳の単語・熟語が歌詞のどこに出てくるか。活用形もゆるく一致させる（falling ↔ fall など）
+function buildIndex() {
+  const words = new Map(), phrases = [];
+  vocab.forEach(v => {
+    if (v.phrase) { const toks = v.w.split(' ').map(t => new Set(candidates(t))); if (toks.length > 1) phrases.push({ v, toks }); }
+    else { words.set(v.w, v); if (v.raw) words.set(cleanWord(v.raw), v); }
+  });
+  phrases.sort((x, y) => y.toks.length - x.toks.length);   // 長い熟語を優先
+  return { words, phrases };
+}
+function findMarks(rawWords) {
+  const word = [], phrase = [];
+  if (!vocab.length) return { word, phrase };
+  if (!vIndex) vIndex = buildIndex();
+  const fs = rawWords.map(w => { const c = cleanWord(w); return c ? candidates(c) : []; });
+  vIndex.phrases.forEach(p => {
+    const n = p.toks.length;
+    for (let i = 0; i + n <= fs.length; i++) {
+      let ok = true;
+      for (let k = 0; k < n && ok; k++) ok = !phrase[i + k] && fs[i + k].some(x => p.toks[k].has(x));
+      if (ok) { const m = { v: p.v, start: i, end: i + n - 1 }; for (let k = 0; k < n; k++) phrase[i + k] = m; i += n - 1; }
+    }
+  });
+  fs.forEach((f, i) => { const hit = f.find(x => vIndex.words.has(x)); if (hit) word[i] = vIndex.words.get(hit); });
+  return { word, phrase };
+}
+function addVocab(r, opt) {
+  const c = lookupCtx || {}, li = c.lineIdx != null ? lines[c.lineIdx] : null;
+  const e = { w: r.base, raw: r.w, ja: r.ja || '', info: r.info || null, line: li ? li.text : '', trans: (li && trans[c.lineIdx]) || '',
+              vid: c.vid || null, t: li && li.t !== null ? li.t + offsetMs / 1000 : null, song: songName(), added: Date.now(), learned: false, reviews: 0 };
+  if (opt && opt.phrase) e.phrase = true;
+  vocab.push(e); saveVocab(); toast(`「${e.phrase ? r.w : r.base}」を単語帳に追加しました`);
+}
+function showVocabDict(v, el) {
+  lookupCtx = null; document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel')); if (el) el.classList.add('sel');
+  openSheet('sheet-dict'); renderDict(dictCache[v.raw] || { w: v.raw || v.w, base: v.w, ja: v.ja, info: v.info }, v); }
 function jumpTo(v) {
   showTab('play');
   const t = v.t || 0;
@@ -1122,13 +1254,14 @@ function renderVocab() {
     (!q || [v.w, v.ja, v.line, v.song].join(' ').toLowerCase().includes(q))).sort((a, b) => b.added - a.added);
   box.textContent = '';
   if (!list.length) {
-    box.innerHTML = `<div class="cell muted">${vocab.length ? '該当する単語はありません' : '動画の下の歌詞の単語をタップ →「単語帳に追加」で登録できます'}</div>`;
+    box.innerHTML = `<div class="cell muted">${vocab.length ? '該当する単語はありません' : '動画の下の歌詞の単語をタップ →「単語帳に追加」か「熟語として登録」で登録できます'}</div>`;
     return;
   }
   list.forEach(v => {
     const c = document.createElement('button'); c.className = 'cell';
     c.innerHTML = `<div class="cmain"><div class="ctitle"><b></b><span class="ja-inline"></span></div><div class="csub"></div></div><svg class="i chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>`;
     c.querySelector('b').textContent = v.w; c.querySelector('.ja-inline').textContent = v.ja;
+    if (v.phrase) c.querySelector('.ctitle').insertAdjacentHTML('afterbegin', '<span class="badge blue" style="margin-right:6px">熟語</span>');
     c.querySelector('.csub').textContent = v.line ? `“${v.line}”` : (v.song || '');
     c.onclick = () => showVocabDict(v);
     box.appendChild(c);
@@ -1320,6 +1453,125 @@ $('addplNew').onclick = () => {
   lib.lists.push({ id: newListId(), name: n, vids: [curVid] }); lib.songs[curVid] = currentEntry();
   saveLib(); renderAddPl(); toast(`★「${n}」を作って追加しました`);
 };
+
+/* ---------- おすすめの曲 ----------
+   プレイリストのアーティスト → Deezer の「似たアーティスト」の人気曲 → LRCLIB にタイミング付き歌詞がある曲だけ */
+let dzN = 0;
+function dz(path) {   // Deezer API は CORS 非対応なので JSONP で呼ぶ
+  return new Promise((res, rej) => {
+    const cb = '__dz' + (++dzN), sc = document.createElement('script');
+    const done = () => { clearTimeout(tm); window[cb] = () => {}; sc.remove(); };
+    const tm = setTimeout(() => { done(); rej(new Error('timeout')); }, 9000);
+    window[cb] = (d) => { done(); d && d.error ? rej(new Error('api')) : res(d); };
+    sc.onerror = () => { done(); rej(new Error('network')); };
+    sc.src = 'https://api.deezer.com' + path + (path.includes('?') ? '&' : '?') + 'output=jsonp&callback=' + cb;
+    document.head.appendChild(sc);
+  });
+}
+const normT = (x) => String(x || '').toLowerCase().replace(/\(.*?\)|\[.*?\]/g, '').replace(/[^a-z0-9]+/g, '');
+const mainArtist = (x) => String(x || '').split(/\s+(?:feat\.?|ft\.?|featuring|with|x|&)\s+|,/i)[0].trim();
+function songAT(it) {
+  const m = (it.src || '').split(' — ');
+  return m.length === 2 && m[0] && m[1] ? { artist: m[0], title: m[1] } : { artist: it.artist || '', title: it.title || '' };
+}
+function shuffled(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+async function hasSynced(artist, title) {
+  try {
+    const l = await (await fetch('https://lrclib.net/api/search?' + new URLSearchParams({ track_name: title, artist_name: artist }))).json();
+    return Array.isArray(l) && l.some(x => x.syncedLyrics);
+  } catch { return false; }
+}
+async function buildRecs(onItem) {
+  const songs = Object.values(lib.songs).map(songAT);
+  const owned = new Set(songs.map(x => normT(x.title)));
+  const cnt = new Map();
+  songs.forEach(x => { const a = mainArtist(x.artist); if (a) cnt.set(a, (cnt.get(a) || 0) + 1); });
+  if (!cnt.size) throw new Error('noseed');
+  const seeds = shuffled([...cnt.entries()]).sort((x, y) => y[1] - x[1]).slice(0, 6);
+  const found = (await Promise.all(seeds.map(async ([name, n]) => {
+    try { const r = await dz('/search/artist?q=' + encodeURIComponent(name) + '&limit=1'); const a = r.data && r.data[0]; return a ? { id: a.id, name, n } : null; }   // 名前は自分のデータの表記を使う（Deezer は日本語表記を返すことがある）
+    catch { return null; }
+  }))).filter(Boolean);
+  if (!found.length) throw new Error('net');
+  const seedIds = new Set(found.map(x => x.id)), rel = new Map();
+  await Promise.all(found.map(async sd => {
+    try {
+      const r = await dz(`/artist/${sd.id}/related?limit=12`);
+      (r.data || []).forEach((a, k) => {
+        if (seedIds.has(a.id)) return;
+        const e = rel.get(a.id) || { id: a.id, name: a.name, score: 0, because: sd.name };
+        e.score += sd.n * (1 - k / 15) + Math.random() * 0.8; rel.set(a.id, e);
+      });
+    } catch {}
+  }));
+  const top = async (id, artist, because, kind, max) => {
+    try {
+      const r = await dz(`/artist/${id}/top?limit=10`);
+      return shuffled((r.data || []).slice(0, 8)).filter(t => !owned.has(normT(t.title_short || t.title))).slice(0, max)
+        .map(t => ({ title: t.title_short || t.title, artist, cover: t.album && t.album.cover_medium, preview: t.preview, because, kind }));
+    } catch { return []; }
+  };
+  const relTop = [...rel.values()].sort((x, y) => y.score - x.score).slice(0, 14);
+  const got = await Promise.all([...relTop.map(a => top(a.id, a.name, a.because, 'rel', 2)), ...found.slice(0, 4).map(sd => top(sd.id, sd.name, sd.name, 'same', 1))]);
+  const cands = shuffled(got.flat());
+  cands.sort((x, y) => recShown.has(normT(x.title)) - recShown.has(normT(y.title)));   // 前に出した曲は後回し
+  const seen = new Set(); let n = 0;
+  for (let i = 0; i < cands.length && n < 15; i += 5) {
+    const batch = cands.slice(i, i + 5).filter(c => { const k = normT(c.artist) + '|' + normT(c.title); if (seen.has(k)) return false; seen.add(k); return true; });
+    const ok = await Promise.all(batch.map(c => hasSynced(c.artist, c.title)));
+    batch.forEach((c, k) => { if (ok[k] && n < 15) { n++; onItem(c); } });
+  }
+}
+let recItems = null, recBusy = false, recAudio = null, recPlaying = null;
+const recShown = new Set();
+const PLAY_SVG = '<svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
+const PAUSE_SVG = '<svg viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/></svg>';
+function stopPreview() {
+  if (recAudio) { recAudio.pause(); recAudio = null; }
+  if (recPlaying) { recPlaying.innerHTML = PLAY_SVG; recPlaying = null; }
+}
+function recRow(it) {
+  const row = document.createElement('div'); row.className = 'cell';
+  const a = document.createElement('a'); a.className = 'recmain'; a.target = '_blank'; a.rel = 'noopener';
+  a.href = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(`${it.artist} ${it.title} official video`);
+  a.innerHTML = `<img class="cover" alt="" loading="lazy"><div class="cmain"><div class="ctitle"></div><div class="csub"></div></div>`;
+  if (it.cover) a.querySelector('img').src = it.cover;
+  a.querySelector('.ctitle').textContent = it.title;
+  a.querySelector('.csub').innerHTML = `${esc(it.artist)} · <span class="reason">${esc(it.because)}${it.kind === 'same' ? ' の人気曲' : ' が好きなら'}</span>`;
+  a.onclick = () => { stopPreview(); if (player && player.pauseVideo) player.pauseVideo(); };
+  row.appendChild(a);
+  if (it.preview) {
+    const p = document.createElement('button'); p.className = 'prevbtn'; p.innerHTML = PLAY_SVG; p.setAttribute('aria-label', '試聴');
+    p.onclick = () => {
+      if (recPlaying === p) return stopPreview();
+      stopPreview();
+      if (player && player.getPlayerState && player.getPlayerState() === 1) player.pauseVideo();
+      recAudio = new Audio(it.preview); recAudio.onended = stopPreview;
+      recAudio.play().catch(() => { stopPreview(); toast('試聴できませんでした。「別の候補を出す」で読み直してください'); });
+      recPlaying = p; p.innerHTML = PAUSE_SVG;
+    };
+    row.appendChild(p);
+  }
+  return row;
+}
+async function loadRecs(force) {
+  const box = $('recList');
+  if (recBusy) return;
+  if (!force && recItems && recItems.length) { box.textContent = ''; recItems.forEach(it => box.appendChild(recRow(it))); return; }
+  stopPreview(); recBusy = true; $('recMore').disabled = true; $('recMore').style.opacity = .5;
+  box.innerHTML = '<div class="cell muted" id="recWait">好みに合いそうな曲をさがしています…</div>';
+  const items = [];
+  try {
+    await buildRecs(it => { items.push(it); recShown.add(normT(it.title)); $('recWait').before(recRow(it)); $('recWait').textContent = 'さらにさがしています…'; });
+    $('recWait').remove();
+    if (!items.length) box.innerHTML = '<div class="cell muted">見つかりませんでした。「別の候補を出す」を試してください</div>';
+    recItems = items;
+  } catch (e) {
+    box.innerHTML = `<div class="cell muted">${e.message === 'noseed' ? 'プレイリストに曲を入れると、そこからおすすめを出せます' : '通信に失敗しました。少しして「別の候補を出す」を押してください'}</div>`;
+  } finally { recBusy = false; $('recMore').disabled = false; $('recMore').style.opacity = ''; }
+}
+$('recOpen').onclick = () => { openSheet('sheet-rec'); loadRecs(false); };
+$('recMore').onclick = () => loadRecs(true);
 
 /* ---------- バックアップ・書き出し ---------- */
 function download(name, body, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([body], { type })); a.download = name; a.click(); }
