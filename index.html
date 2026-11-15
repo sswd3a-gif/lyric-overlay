@@ -34,12 +34,13 @@
   #overlay.top { bottom: auto; top: var(--lyric-pos); }
   #overlay.middle { bottom: auto; top: 50%; transform: translateY(-50%); }
   /* 映像の上の複数行：今の行だけ明るく、前後の行は少し暗く（文字の大きさは同じ） */
-  #overlay .ol { color: var(--lyric-color); font-size: var(--lyric-size); font-weight: 800; line-height: 1.25; margin: .12em 0;
+  #overlay .ol { color: var(--lyric-color); font-size: calc(var(--lyric-size) * var(--fit, 1)); font-weight: 800; line-height: 1.25; margin: .12em 0;
                  text-shadow: 0 0 6px #000, 0 2px 4px #000, 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
                  opacity: .45; transition: opacity .2s; }
   #overlay .ol.cur { opacity: 1; }
   #overlay .ol .otr { color: var(--trans-color); font-size: .6em; font-weight: 700; margin-top: .1em; }
-  #stage:fullscreen #overlay .ol, #stage.pseudo-fs #overlay .ol { font-size: calc(var(--lyric-size) * 1.6); }
+  #stage:fullscreen #overlay .ol, #stage.pseudo-fs #overlay .ol { font-size: calc(var(--lyric-size) * 1.6 * var(--fit, 1)); }
+  #ver { font-size: 11px; color: var(--muted); margin-left: auto; }
   /* 映像を暗くするフィルター（歌詞を読みやすく） */
   #dimmer { position: absolute; inset: 0; background: #000; opacity: var(--dim, .4); pointer-events: none; }
   /* iPhone Safari は div の全画面化に非対応 → 画面いっぱいに広げる代替表示 */
@@ -199,7 +200,7 @@
 
   <aside>
     <details class="panel" id="helpBox">
-      <summary>❓ 使い方</summary>
+      <summary>❓ 使い方 <span id="ver">版: 2026-11-15e</span></summary>
       <ol class="help">
         <li>いちばん上に YouTube の URL を貼って「<b>▶ 動画を開く</b>」</li>
         <li>下の「<b>② 歌詞をさがす</b>」で「🔍 歌詞を検索」→ <b>⏱</b> の付いた候補をタップ</li>
@@ -644,7 +645,16 @@ function renderOverlay(idx) {
     if (li === idx && trans[li]) { const tr = document.createElement('div'); tr.className = 'otr'; tr.textContent = trans[li]; d.appendChild(tr); }
     box.appendChild(d);
   });
+  fitOverlay();
 }
+// 長い行が折り返して映像に入りきらない時は、全行が収まるまで文字を自動で縮める
+function fitOverlay() {
+  const box = $('overlay'), st = $('stage'), max = st.clientHeight * 0.94;
+  let f = 1; box.style.setProperty('--fit', 1);
+  while (box.scrollHeight > max && f > 0.35) { f -= 0.05; box.style.setProperty('--fit', f.toFixed(2)); }
+}
+window.addEventListener('resize', fitOverlay);
+document.addEventListener('fullscreenchange', () => setTimeout(fitOverlay, 100));
 function renderNow(idx) {
   const box = $('nowText'), n = +$('nLines').value;
   const win = windowLines(idx, n);
