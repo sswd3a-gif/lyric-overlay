@@ -23,7 +23,7 @@
   @media (max-width: 1000px) { main { grid-template-columns: minmax(0, 1fr); } }
   /* 横はみ出し防止：長い単語・曲名でも画面幅を超えないように */
   html, body { max-width: 100%; overflow-x: clip; }
-  main > section, main > aside { min-width: 0; }
+  #top, #ctrls, main > aside { min-width: 0; }
   input, select, textarea, button { max-width: 100%; min-width: 0; }
   #status, #nowText, #nowTrans, #alignText, #results div, #lines div, #dict, .hint, #cur, #trans, #next { overflow-wrap: anywhere; word-break: normal; }
   header input#url { min-width: 0 !important; }
@@ -64,17 +64,53 @@
   #dict ol { margin: 2px 0 0 20px; padding: 0; }
   #dict li { margin-bottom: 3px; }
   #dict .ex { color: var(--muted); font-style: italic; font-size: 13px; }
+  /* 動画下の複数行表示 */
+  #nowText .ln { color: var(--muted); font-size: 15px; line-height: 1.6; padding: 1px 0; overflow-wrap: anywhere; }
+  #nowText .ln.cur { color: var(--text); font-size: 18px; font-weight: 700; }
+  #nowText .ln .tr { color: var(--trans-color); font-size: 13px; font-weight: 400; }
+  /* 単語帳 */
+  #vocab { max-height: 380px; overflow: auto; }
+  .vitem { padding: 8px 4px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  .vitem.done { opacity: .55; }
+  .vitem .vw b { font-size: 16px; cursor: pointer; }
+  .vitem .ja { color: var(--trans-color); margin-left: 6px; }
+  .vitem .vctx { color: var(--muted); font-size: 12px; font-style: italic; }
+  .vitem .row { margin: 4px 0 0; }
+  .vitem button { padding: 2px 8px; font-size: 12px; }
+  #card { position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 2100; display: none; align-items: center; justify-content: center; padding: 16px; }
+  #card.show { display: flex; }
+  #cardBox { background: #1e2330; border: 1px solid var(--accent); border-radius: 14px; padding: 20px; width: 100%; max-width: 480px; text-align: center; overflow-wrap: anywhere; }
+  #cardBox .cw { font-size: 30px; font-weight: 800; margin: 6px 0; }
+  #cardBox .cctx { color: var(--muted); font-style: italic; margin: 8px 0; }
+  #cardBox .cctx b { color: var(--text); font-style: normal; }
+  #cardBox .ja { font-size: 20px; color: var(--trans-color); margin: 8px 0; }
+  #cardBox .row { justify-content: center; }
+  #cardBox ol { text-align: left; margin: 4px 0 0 20px; padding: 0; font-size: 13px; }
   /* プレイリスト */
   #pl .item { display: flex; align-items: center; gap: 6px; padding: 6px 4px; border-bottom: 1px solid var(--line); }
   #pl .item.cur { background: #24304a; border-radius: 6px; }
   #pl .name { flex: 1; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #pl .item button { padding: 2px 8px; }
+  /* レイアウト：PC は左に動画＋操作、右にパネル。スマホは縦に並べて「動画＋今の歌詞」だけ上部に固定 */
+  main { grid-template-areas: "top side" "ctrl side"; grid-template-rows: auto 1fr; }
+  #top { grid-area: top; } #ctrls { grid-area: ctrl; align-self: start; } aside { grid-area: side; }
   @media (max-width: 1000px) {
-    /* スマホ・タブレットでは動画＋操作ボタンをページ全体で上部に固定し、歌詞欄をスクロールしても見え続けるように */
-    main > section { position: sticky; top: 0; z-index: 10; background: var(--bg); padding-bottom: 6px; }
-    main > section .row button, main > section .row select { padding: 6px 8px; }
+    main { grid-template-areas: "top" "ctrl" "side"; grid-template-rows: auto; }
+    #top { position: sticky; top: 0; z-index: 10; background: var(--bg); padding-bottom: 4px; }
   }
-  @media (min-width: 1001px) { main > section { align-self: start; } }
+  /* 操作ボタンのグループ */
+  #ctrls { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px 10px; }
+  .grp { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+  .gl { min-width: 72px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .seg { display: inline-flex; }
+  .seg button { border-radius: 0; margin-left: -1px; }
+  .seg button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
+  .seg button:last-child { border-radius: 0 6px 6px 0; }
+  .seg button.on, button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  /* たためるパネル */
+  details.panel > summary { cursor: pointer; font-weight: 600; }
+  details.panel[open] > summary { margin-bottom: 8px; }
+  ol.help { margin: 0 0 6px 18px; padding: 0; line-height: 1.7; }
   @media (max-width: 600px) {
     /* iPhone は 16px 未満の入力欄をタップすると勝手にズームして横スクロールが出るので 16px に */
     input, select, textarea { font-size: 16px; }
@@ -107,32 +143,22 @@
 <body>
 <header>
   <h1>🎵 Lyric Overlay</h1>
-  <input id="url" placeholder="YouTube URL または動画ID" style="flex:1;min-width:260px">
-  <button class="primary" id="loadBtn">読み込み</button>
-  <button id="fsBtn" title="歌詞付きで全画面表示">⛶ 全画面</button>
+  <input id="url" placeholder="① YouTube の URL をここに貼り付け" style="flex:1">
+  <button class="primary" id="loadBtn">▶ 動画を開く</button>
+  <button id="fsBtn">⛶ 歌詞つき全画面</button>
 </header>
 
 <main>
-  <section>
+  <!-- 動画＋今の歌詞（スマホでは画面上部に固定） -->
+  <div id="top">
     <div id="stage">
       <div id="player"></div>
       <div id="overlay"><div id="cur"></div><div id="trans"></div><div id="next"></div></div>
       <button id="exitFs">✕</button>
     </div>
     <div id="status"></div>
-    <div class="row" style="margin-top:8px">
-      <button id="loopBtn">🔁 この行をリピート</button>
-      <button id="prevBtn">⏮ 前の行</button>
-      <button id="againBtn">↺ もう一度</button>
-      <label style="min-width:auto">速度</label>
-      <select id="rate"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option></select>
-      <button id="favBtn">★ 保存</button>
-    </div>
-    <div class="row">
-      <button id="offEarly" title="歌詞の表示を0.5秒早める">◀ 歌詞を早く</button>
-      <span id="offQ" style="min-width:56px;text-align:center">±0.0秒</span>
-      <button id="offLate" title="歌詞の表示を0.5秒遅らせる">歌詞を遅く ▶</button>
-      <button id="hereBtn">🎯 ズレを合わせる</button>
+    <div id="nowLine">
+      <div id="nowText"><span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span></div>
     </div>
     <div id="alignBox" class="panel" style="display:none;margin:6px 0 0;border-color:var(--accent)">
       <div class="hint">① 動画を再生したまま、この歌詞が<b>歌われるのを待つ</b></div>
@@ -143,82 +169,120 @@
       </div>
       <div class="hint">もう過ぎてしまったら「次の行にする」で、これから歌われる行を選んでください</div>
     </div>
-    <div id="nowLine">
-      <div id="nowText"><span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span></div>
-      <div id="nowTrans"></div>
-    </div>
+  </div>
 
-  </section>
+  <!-- 操作ボタン（役割ごとに見出し付き） -->
+  <div id="ctrls">
+    <div class="grp"><span class="gl">聞き直す</span>
+      <button id="againBtn">↺ 今の行を頭から</button>
+      <button id="prevBtn">⏮ 1つ前の行へ</button>
+      <button id="loopBtn">🔁 今の行をくり返す</button>
+    </div>
+    <div class="grp"><span class="gl">再生の速さ</span>
+      <span class="seg" id="rateSeg"><button data-rate="0.5">0.5倍</button><button data-rate="0.75">0.75倍</button><button data-rate="1" class="on">ふつう</button><button data-rate="1.25">1.25倍</button></span>
+      <input type="hidden" id="rate" value="1">
+    </div>
+    <div class="grp"><span class="gl">歌詞のズレ</span>
+      <button id="offEarly">◀ 歌詞を早く</button>
+      <span id="offQ" style="min-width:52px;text-align:center">±0.0秒</span>
+      <button id="offLate">歌詞を遅く ▶</button>
+      <button id="hereBtn">🎯 自動で合わせる</button>
+    </div>
+    <div class="grp"><span class="gl">保存</span>
+      <button id="favBtn">★ この曲をプレイリストに保存</button>
+    </div>
+  </div>
 
   <aside>
-    <div class="panel">
-      <h2>プレイリスト</h2>
-      <div id="pl"></div>
-      <div class="row" style="margin-top:6px">
-        <button id="nextBtn">⏭ 次の曲</button>
-        <label style="min-width:auto"><input type="checkbox" id="autoNext" checked> 終わったら次へ</label>
-        <label style="min-width:auto"><input type="checkbox" id="shuffle"> シャッフル</label>
-      </div>
-      <div class="row"><button id="plExport">バックアップを保存</button><button id="plImportBtn">バックアップから復元</button><input type="file" id="plImport" accept=".json" hidden></div>
-      <div class="hint">保存先はこの端末のブラウザの中です。ブラウザのデータを消す前や機種変更の前は「バックアップを保存」をしてください。</div>
-    </div>
+    <details class="panel" id="helpBox">
+      <summary>❓ 使い方</summary>
+      <ol class="help">
+        <li>いちばん上に YouTube の URL を貼って「<b>▶ 動画を開く</b>」</li>
+        <li>下の「<b>② 歌詞をさがす</b>」で「🔍 歌詞を検索」→ <b>⏱</b> の付いた候補をタップ</li>
+        <li>再生すると歌詞が出ます。<b>単語をタップ</b>すると意味が見られ、「★ 単語帳に追加」で保存できます</li>
+        <li>歌詞が早い・遅いときは「<b>🎯 自動で合わせる</b>」</li>
+        <li>気に入った曲は「<b>★ この曲をプレイリストに保存</b>」。次からはプレイリストの曲名をタップするだけ</li>
+      </ol>
+      <div class="hint">聞き取れない所は「🔁 今の行をくり返す」＋「0.75倍」がおすすめ</div>
+    </details>
 
     <div class="panel">
-      <h2>表示スタイル</h2>
-      <div class="row">
-        <label>文字サイズ</label><input type="range" id="size" min="20" max="90" value="44">
-        <label>位置</label><select id="pos"><option value="bottom">下</option><option value="top">上</option></select>
-        <input type="range" id="posv" min="2" max="40" value="8">
-      </div>
-      <div class="row">
-        <label>文字色</label><input type="color" id="color" value="#ffffff">
-        <label>訳の色</label><input type="color" id="tcolor" value="#ffe08a">
-        <label><input type="checkbox" id="showNext" checked> 次の行</label>
-      </div>
-      <div class="row">
-        <label>オフセット</label><input type="range" id="offset" min="-30000" max="30000" step="50" value="0" style="flex:1">
-        <span id="offsetV">0 ms</span>
-      </div>
-    </div>
-    <div class="panel">
-      <h2>歌詞を検索（LRCLIB）</h2>
-      <div class="row"><input id="qArtist" placeholder="アーティスト" style="flex:1"><input id="qTitle" placeholder="曲名" style="flex:1"></div>
-      <div class="row"><button id="searchBtn">検索</button><span class="hint">同期歌詞（タイムスタンプ付き）があれば自動で使います</span></div>
+      <h2>② 歌詞をさがす</h2>
+      <div class="row"><input id="qArtist" placeholder="アーティスト名" style="flex:1"><input id="qTitle" placeholder="曲名" style="flex:1"></div>
+      <div class="row"><button id="searchBtn" class="primary">🔍 歌詞を検索</button></div>
+      <div class="hint">⏱ ＝ タイミング付き（すぐ使える）　📝 ＝ 文字だけ（「歌詞に時刻を付ける」が必要）</div>
       <div id="results"></div>
     </div>
 
     <div class="panel">
-      <h2>歌詞（LRC またはプレーンテキスト）</h2>
-      <textarea id="lyricText" placeholder="[00:12.30]1行目の歌詞&#10;[00:16.80]2行目の歌詞&#10;&#10;タイムスタンプなしのテキストでもOK → 下の「タップ同期」で時刻を付けられます"></textarea>
+      <h2>📜 プレイリスト</h2>
+      <div id="pl"></div>
       <div class="row" style="margin-top:6px">
-        <button id="applyBtn" class="primary">反映</button>
-        <label class="hint" style="min-width:auto"><input type="file" id="lrcFile" accept=".lrc,.txt,.srt" style="width:160px"></label>
+        <button id="nextBtn">⏭ 次の曲へ</button>
+        <label style="min-width:auto"><input type="checkbox" id="autoNext" checked> 曲が終わったら次へ</label>
+        <label style="min-width:auto"><input type="checkbox" id="shuffle"> ランダムな順</label>
       </div>
-      <h2 style="margin-top:10px">和訳（任意・1行ずつ対応）</h2>
-      <textarea id="transText" placeholder="歌詞の各行に対応する訳を同じ行順で"></textarea>
     </div>
 
     <div class="panel">
-      <h2>タップ同期</h2>
+      <h2>📒 単語帳 <span id="vocabCount"></span></h2>
+      <div class="row"><button id="cardBtn" class="primary">🃏 カードで復習する</button></div>
       <div class="row">
-        <button id="syncBtn">同期モード開始</button>
-        <span class="hint">再生中に <kbd>Space</kbd> で次の行の開始時刻を記録 / <kbd>Backspace</kbd> で1行戻る</span>
+        <input id="vocabSearch" placeholder="単語・意味・曲名で検索" style="flex:1">
+        <select id="vocabFilter"><option value="todo">まだ覚えてない</option><option value="all">すべて</option><option value="done">覚えた</option></select>
       </div>
-      <button id="tapBtn" class="primary">● タップ（この行の開始）</button>
+      <div id="vocab"></div>
+    </div>
+
+    <details class="panel">
+      <summary>💾 バックアップ（機種変更・データ消去の前に）</summary>
+      <div class="hint">プレイリストと単語帳は、この端末のブラウザの中だけに保存されています。ファイルに書き出しておくと、別の端末や消えた後でも復元できます。</div>
+      <div class="row" style="margin-top:6px"><button id="plExport">💾 バックアップを保存</button><button id="plImportBtn">📂 バックアップから復元</button><input type="file" id="plImport" accept=".json" hidden></div>
+      <div class="row"><button id="vocabCsv">📄 単語帳を CSV で書き出す（Excel・Anki 用）</button></div>
+    </details>
+
+    <details class="panel">
+      <summary>⚙ 表示の設定（文字の大きさ・色・行数）</summary>
+      <div class="row"><label>動画の上の文字</label><input type="range" id="size" min="20" max="90" value="44"></div>
+      <div class="row"><label>文字の位置</label><select id="pos"><option value="bottom">下</option><option value="top">上</option></select><input type="range" id="posv" min="2" max="40" value="8"></div>
+      <div class="row"><label>歌詞の色</label><input type="color" id="color" value="#ffffff"><label>和訳の色</label><input type="color" id="tcolor" value="#ffe08a"></div>
+      <div class="row"><label><input type="checkbox" id="showNext" checked> 動画の上に次の行も出す</label></div>
+      <div class="row"><label>動画の下の行数</label><select id="nLines"><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select></div>
+      <div class="row"><label>ズレ（細かく）</label><input type="range" id="offset" min="-30000" max="30000" step="50" value="0" style="flex:1"><span id="offsetV">0 ms</span></div>
+    </details>
+
+    <details class="panel">
+      <summary>✏️ 歌詞・和訳を自分で入力する</summary>
+      <h2>歌詞（タイミング付き LRC でも、文字だけでも OK）</h2>
+      <textarea id="lyricText" placeholder="[00:12.30]1行目の歌詞&#10;[00:16.80]2行目の歌詞&#10;&#10;文字だけの歌詞なら、下の「歌詞に時刻を付ける」でタイミングを付けられます"></textarea>
+      <div class="row" style="margin-top:6px">
+        <button id="applyBtn" class="primary">✓ この歌詞・和訳を使う</button>
+        <label class="hint" style="min-width:auto">ファイルから: <input type="file" id="lrcFile" accept=".lrc,.txt,.srt" style="width:160px"></label>
+      </div>
+      <h2 style="margin-top:10px">和訳（歌詞と同じ行の順番で1行ずつ）</h2>
+      <textarea id="transText" placeholder="1行目の訳&#10;2行目の訳"></textarea>
+    </details>
+
+    <details class="panel">
+      <summary>⏱ 歌詞に時刻を付ける（文字だけの歌詞のとき）</summary>
+      <div class="hint">「始める」を押して曲を再生し、各行が歌い始めた瞬間に大きなボタン（PC は <kbd>Space</kbd>）を押します。間違えたら <kbd>Backspace</kbd> または行をタップでやり直し。</div>
+      <div class="row" style="margin-top:6px"><button id="syncBtn">⏱ 時刻付けを始める</button></div>
+      <button id="tapBtn" class="primary">● 今この行が始まった！</button>
       <div id="lines"></div>
-    </div>
+    </details>
 
-    <div class="panel">
-      <h2>書き出し（動画作成用）</h2>
+    <details class="panel">
+      <summary>🎬 字幕ファイルに書き出す（PC で動画を作る人向け）</summary>
       <div class="row">
-        <button data-exp="lrc">LRC</button><button data-exp="srt">SRT</button><button data-exp="ass">ASS（スタイル付き）</button>
+        <button data-exp="lrc">LRC 形式</button><button data-exp="srt">SRT 形式</button><button data-exp="ass">ASS 形式（色・位置付き）</button>
       </div>
       <div class="hint">ASS を <code>burn.py</code> で手元の動画ファイルに焼き込むと歌詞付き動画になります。</div>
-    </div>
+    </details>
   </aside>
 </main>
 
 <div id="dict"><button id="dictClose" style="float:right">✕</button><div id="dictBody"></div></div>
+<div id="card"><div id="cardBox"></div></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -245,7 +309,7 @@ $('loadBtn').onclick = () => {
   loadVideo(id);
 };
 function loadVideo(id) {
-  curVid = id; loopIdx = -1; $('loopBtn').className = ''; renderPl();
+  curVid = id; loopIdx = -1; setLoopUI(); renderPl();
   if (player && player.loadVideoById) { player.loadVideoById(id); return; }
   player = new YT.Player('player', {
     videoId: id,
@@ -253,7 +317,10 @@ function loadVideo(id) {
     events: {
       onReady: () => { status('読み込み完了'); guessTitle(); requestAnimationFrame(tick); },
       onStateChange: (e) => {
-        if (e.data === YT.PlayerState.PLAYING) { guessTitle(); player.setPlaybackRate(+$('rate').value); }
+        if (e.data === YT.PlayerState.PLAYING) {
+          guessTitle(); player.setPlaybackRate(+$('rate').value);
+          if (pendingSeek != null) { player.seekTo(Math.max(0, pendingSeek - 1), true); pendingSeek = null; }
+        }
         if (e.data === YT.PlayerState.ENDED && $('autoNext').checked && loopIdx < 0) nextSong();
       },
       onError: (e) => status('再生エラー (' + e.data + ')：この動画は埋め込み再生が禁止されている可能性があります'),
@@ -389,9 +456,7 @@ function tick() {
     $('trans').textContent = idx >= 0 && trans[idx] ? trans[idx] : '';
     const nx = lines[idx + 1];
     $('next').textContent = $('showNext').checked && nx ? nx.text : '';
-    if (idx >= 0) wordsInto($('nowText'), lines[idx].text);
-    else $('nowText').innerHTML = '<span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span>';
-    $('nowTrans').textContent = idx >= 0 && trans[idx] ? trans[idx] : '';
+    renderNow(idx);
     document.querySelectorAll('#lines div').forEach((el, i) => el.classList.toggle('on', i === idx));
     const on = document.querySelector('#lines div.on'); if (on && !syncMode) scrollListTo(on);
   }
@@ -402,7 +467,7 @@ function renderLines() {
   const box = $('lines'); box.innerHTML = '';
   lines.forEach((l, i) => {
     const d = document.createElement('div'); if (l.t === null) d.className = 'notime';
-    d.innerHTML = `<span class="t">${fmt(l.t)}</span><span></span>`; wordsInto(d.lastChild, l.text);
+    d.innerHTML = `<span class="t">${fmt(l.t)}</span><span></span>`; wordsInto(d.lastChild, l.text, i);
     d.onclick = () => { if (syncMode) { syncIdx = i; markSync(); } else if (l.t !== null && player) player.seekTo(l.t + offsetMs / 1000, true); };
     box.appendChild(d);
   });
@@ -412,7 +477,7 @@ function renderLines() {
 function markSync() { document.querySelectorAll('#lines div').forEach((el, i) => el.style.outline = syncMode && i === syncIdx ? '1px solid #4f8cff' : ''); }
 $('syncBtn').onclick = () => {
   syncMode = !syncMode;
-  $('syncBtn').textContent = syncMode ? '同期モード終了' : '同期モード開始';
+  $('syncBtn').textContent = syncMode ? '■ 時刻付けを終わる' : '⏱ 時刻付けを始める';
   $('syncBtn').className = syncMode ? 'rec' : '';
   $('tapBtn').classList.toggle('show', syncMode);
   if (syncMode) { syncIdx = Math.max(0, lines.findIndex(l => l.t === null)); status('同期モード：曲を再生し、各行が歌い始めた瞬間に Space'); }
@@ -513,11 +578,21 @@ function status(s) { $('status').textContent = s; }
 
 /* ---------- 学習用コントロール ---------- */
 $('loopBtn').onclick = () => {
-  if (loopIdx >= 0) { loopIdx = -1; $('loopBtn').className = ''; return; }
+  if (loopIdx >= 0) { loopIdx = -1; setLoopUI(); return; }
   const i = currentIndex(nowSec() - offsetMs / 1000);
   if (i < 0) return status('歌詞の行が表示されている時に押してください');
-  loopIdx = i; $('loopBtn').className = 'rec';
+  loopIdx = i; setLoopUI();
 };
+function setLoopUI() {
+  $('loopBtn').className = loopIdx >= 0 ? 'rec' : '';
+  $('loopBtn').textContent = loopIdx >= 0 ? '🔁 くり返し中（タップで止める）' : '🔁 今の行をくり返す';
+}
+// 再生の速さ（ボタン式）
+document.querySelectorAll('#rateSeg button').forEach(b => b.onclick = () => {
+  $('rate').value = b.dataset.rate;
+  document.querySelectorAll('#rateSeg button').forEach(x => x.classList.toggle('on', x === b));
+  if (player && player.setPlaybackRate) player.setPlaybackRate(+b.dataset.rate);
+});
 $('againBtn').onclick = () => { const i = loopIdx >= 0 ? loopIdx : currentIndex(nowSec() - offsetMs / 1000); if (i >= 0) player.seekTo(lineStart(i), true); };
 $('prevBtn').onclick = () => {
   let i = currentIndex(nowSec() - offsetMs / 1000) - 1;
@@ -532,16 +607,34 @@ function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); retu
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* ---------- 単語タップ辞書 ---------- */
-function wordsInto(container, text) {
+function wordsInto(container, text, lineIdx) {
   container.textContent = '';
   text.split(/(\s+)/).forEach(tok => {
     if (!tok) return;
     if (/^\s+$/.test(tok)) { container.appendChild(document.createTextNode(tok)); return; }
     const s = document.createElement('span'); s.className = 'w'; s.textContent = tok;
-    s.addEventListener('click', (e) => { if (syncMode) return; e.stopPropagation(); lookup(tok, s); });
+    s.addEventListener('click', (e) => { if (syncMode) return; e.stopPropagation(); lookup(tok, s, lineIdx); });
     container.appendChild(s);
   });
 }
+// 動画の下に「前の行・今の行・次の行…」を指定行数ぶん表示（今の行は太字＋和訳）
+function renderNow(idx) {
+  const box = $('nowText'), n = +$('nLines').value;
+  const sung = []; lines.forEach((l, i) => { if (l.t !== null && l.text) sung.push(i); });
+  if (!sung.length) { box.innerHTML = '<span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span>'; return; }
+  let k = -1; sung.forEach((li, p) => { if (li <= idx) k = p; });
+  let start = k < 0 ? 0 : (n >= 3 ? k - 1 : k);
+  start = Math.max(0, Math.min(start, sung.length - n));
+  box.textContent = '';
+  sung.slice(start, start + n).forEach(li => {
+    const row = document.createElement('div'); row.className = 'ln' + (li === idx ? ' cur' : '');
+    const txt = document.createElement('span'); wordsInto(txt, lines[li].text, li); row.appendChild(txt);
+    if (li === idx && trans[li]) { const tr = document.createElement('div'); tr.className = 'tr'; tr.textContent = trans[li]; row.appendChild(tr); }
+    box.appendChild(row);
+  });
+}
+$('nLines').value = loadJSON('lo-nlines', 4);
+$('nLines').onchange = () => { saveJSON('lo-nlines', +$('nLines').value); lastIdx = -2; };
 function cleanWord(w) {
   return w.toLowerCase().replace(/[’‘`]/g, "'").replace(/^[^a-z']+|[^a-z']+$/g, '').replace(/^'+/, '');
 }
@@ -591,9 +684,11 @@ function simplify(data) {
 }
 const dictCache = loadJSON('lo-dict', {});
 let resumeAfterDict = false, dictReq = 0;
-async function lookup(raw, el) {
+let lookupCtx = null;
+async function lookup(raw, el, lineIdx) {
   const w = cleanWord(raw); if (!w) return;
-  document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel')); el.classList.add('sel');
+  lookupCtx = { lineIdx, vid: curVid };
+  document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel')); if (el) el.classList.add('sel');
   if (player && player.getPlayerState && player.getPlayerState() === 1) { player.pauseVideo(); resumeAfterDict = true; }
   $('dict').classList.add('show');
   $('dictBody').innerHTML = `<div class="hw">${esc(w)}</div><div class="hint">調べています…</div>`;
@@ -616,6 +711,8 @@ function renderDict(r) {
           (i && i.phonetic ? `<span class="ph">${esc(i.phonetic)}</span>` : '') +
           (i && i.audio ? ` <button id="dictAudio">🔊</button>` : '') + `</div>`;
   h += r.ja ? `<div class="ja">${esc(r.ja)}</div>` : `<div class="hint">日本語訳は取得できませんでした</div>`;
+  const saved = vocab.some(v => v.w === r.base);
+  h += `<button id="vocabAdd" class="${saved ? '' : 'primary'}">${saved ? '✓ 単語帳に登録済み' : '★ 単語帳に追加'}</button>`;
   if (i) i.meanings.forEach(m => {
     h += `<div class="pos">${esc(POS_JA[m.pos] || m.pos)}</div><ol>` +
          m.defs.map(d => `<li>${esc(d.d)}${d.ex ? `<div class="ex">${esc(d.ex)}</div>` : ''}</li>`).join('') + `</ol>`;
@@ -623,6 +720,7 @@ function renderDict(r) {
   else h += `<div class="hint" style="margin-top:6px">英英辞書に見つかりませんでした（固有名詞・スラング・省略形かもしれません）</div>`;
   $('dictBody').innerHTML = h;
   if (i && i.audio) $('dictAudio').onclick = () => new Audio(i.audio).play().catch(() => {});
+  $('vocabAdd').onclick = () => { if (!saved) { addVocab(r); renderDict(r); } };
 }
 $('dictClose').onclick = () => {
   $('dict').classList.remove('show');
@@ -679,22 +777,137 @@ $('favBtn').onclick = () => {
   savePl();
   status(i >= 0 ? `★ プレイリストを更新しました：${entry.name}` : `★ プレイリストに追加しました：${entry.name}`);
 };
-$('plExport').onclick = () => {
-  const blob = new Blob([JSON.stringify(playlist, null, 1)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'lyric-playlist.json'; a.click();
-};
+function download(name, body, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([body], { type })); a.download = name; a.click();
+}
+$('plExport').onclick = () => download('lyric-overlay-backup.json', JSON.stringify({ version: 2, playlist, vocab }, null, 1), 'application/json');
 $('plImportBtn').onclick = () => $('plImport').click();
 $('plImport').onchange = async (e) => {
   const f = e.target.files[0]; if (!f) return;
   try {
-    const arr = JSON.parse(await f.text()); if (!Array.isArray(arr)) throw new Error('形式が違います');
-    let added = 0;
-    arr.filter(x => x && x.vid).forEach(x => { const i = playlist.findIndex(p => p.vid === x.vid); if (i >= 0) playlist[i] = x; else { playlist.push(x); added++; } });
-    savePl(); status(`バックアップから復元しました（新規 ${added} 曲）`);
+    const data = JSON.parse(await f.text());
+    const pl = Array.isArray(data) ? data : (data.playlist || []), vc = Array.isArray(data) ? [] : (data.vocab || []);
+    if (!Array.isArray(pl) || !Array.isArray(vc)) throw new Error('形式が違います');
+    let added = 0, addedW = 0;
+    pl.filter(x => x && x.vid).forEach(x => { const i = playlist.findIndex(p => p.vid === x.vid); if (i >= 0) playlist[i] = x; else { playlist.push(x); added++; } });
+    vc.filter(x => x && x.w).forEach(x => { const i = vocab.findIndex(v => v.w === x.w); if (i >= 0) vocab[i] = x; else { vocab.push(x); addedW++; } });
+    savePl(); saveVocab(); status(`バックアップから復元しました（新規 ${added} 曲・${addedW} 語）`);
   } catch (err) { status('復元に失敗しました: ' + err.message); }
   e.target.value = '';
 };
 renderPl();
+
+/* ---------- 単語帳 ---------- */
+const VOCAB_KEY = 'lo-vocab';
+let vocab = loadJSON(VOCAB_KEY, []), pendingSeek = null;
+function saveVocab() { saveJSON(VOCAB_KEY, vocab); renderVocab(); }
+function songName() {
+  const a = $('qArtist').value.trim(), t = $('qTitle').value.trim();
+  const d = (player && player.getVideoData && player.getVideoData()) || {};
+  return a && t ? `${a} — ${t}` : (t || d.title || '');
+}
+function addVocab(r) {
+  const c = lookupCtx || {}, li = c.lineIdx != null ? lines[c.lineIdx] : null;
+  vocab.push({
+    w: r.base, raw: r.w, ja: r.ja || '', info: r.info || null,
+    line: li ? li.text : '', trans: (li && trans[c.lineIdx]) || '',
+    vid: c.vid || null, t: li && li.t !== null ? li.t + offsetMs / 1000 : null,
+    song: songName(), added: Date.now(), learned: false, reviews: 0,
+  });
+  saveVocab(); status(`★ 単語帳に「${r.base}」を追加しました`);
+}
+function showVocabDict(v) {
+  lookupCtx = null;
+  if (player && player.getPlayerState && player.getPlayerState() === 1) { player.pauseVideo(); resumeAfterDict = true; }
+  $('dict').classList.add('show');
+  renderDict(dictCache[v.raw] || { w: v.raw || v.w, base: v.w, ja: v.ja, info: v.info });
+}
+function jumpTo(v) {
+  if (!v.vid) return status('この単語は再生位置の記録がありません');
+  const t = v.t || 0;
+  if (v.vid === curVid && player && player.seekTo) { player.seekTo(Math.max(0, t - 1), true); player.playVideo(); return; }
+  pendingSeek = t;
+  const i = playlist.findIndex(p => p.vid === v.vid);
+  if (i >= 0) playEntry(i);
+  else { $('qArtist').value = ''; $('qTitle').value = ''; $('url').value = 'https://youtu.be/' + v.vid; loadVideo(v.vid); status('歌詞はプレイリストに保存されていないので、動画だけ再生します'); }
+}
+function renderVocab() {
+  const box = $('vocab'); if (!box) return;
+  const q = $('vocabSearch').value.trim().toLowerCase(), f = $('vocabFilter').value;
+  $('vocabCount').textContent = vocab.length ? `（${vocab.length}語・覚えた ${vocab.filter(v => v.learned).length}）` : '';
+  const list = vocab.filter(v => (f === 'all' || (f === 'done') === !!v.learned) &&
+    (!q || [v.w, v.ja, v.line, v.song].join(' ').toLowerCase().includes(q))).sort((a, b) => b.added - a.added);
+  box.textContent = '';
+  if (!list.length) {
+    box.innerHTML = `<div class="hint">${vocab.length ? '該当する単語はありません' : '歌詞の単語をタップ →「★ 単語帳に追加」で登録できます'}</div>`;
+    return;
+  }
+  list.forEach(v => {
+    const d = document.createElement('div'); d.className = 'vitem' + (v.learned ? ' done' : '');
+    d.innerHTML = `<div class="vw"><b></b><span class="ja"></span></div>` + (v.line ? `<div class="vctx"></div>` : '') + `<div class="row"></div>`;
+    d.querySelector('b').textContent = v.w; d.querySelector('b').onclick = () => showVocabDict(v);
+    d.querySelector('.ja').textContent = v.ja;
+    if (v.line) d.querySelector('.vctx').textContent = `“${v.line}”` + (v.song ? ` — ${v.song}` : '');
+    const row = d.querySelector('.row');
+    if (v.vid) row.appendChild(mkBtn('▶ この場面を聞く', () => jumpTo(v)));
+    row.appendChild(mkBtn(v.learned ? '↩ まだ覚えてない' : '✓ 覚えた', () => { v.learned = !v.learned; saveVocab(); }));
+    row.appendChild(mkBtn('🗑', () => { if (confirm(`「${v.w}」を単語帳から削除しますか？`)) { vocab.splice(vocab.indexOf(v), 1); saveVocab(); } }, '削除'));
+    box.appendChild(d);
+  });
+}
+$('vocabSearch').oninput = renderVocab;
+$('vocabFilter').onchange = renderVocab;
+$('vocabCsv').onclick = () => {
+  if (!vocab.length) return status('単語帳が空です');
+  const q = (s) => '"' + String(s || '').replace(/"/g, '""') + '"';
+  const rows = [['単語', '意味', '歌詞の行', '和訳', '曲', '覚えた']].concat(vocab.map(v => [v.w, v.ja, v.line, v.trans, v.song, v.learned ? '○' : '']));
+  download('vocab.csv', '﻿' + rows.map(r => r.map(q).join(',')).join('\r\n'), 'text/csv');
+};
+
+/* ---------- 単語カード復習 ---------- */
+let cardPool = [], cardI = 0, cardOk = 0;
+function hiWord(line, word) {
+  const e = esc(line); if (!word) return e;
+  const re = new RegExp('(' + esc(word).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+  return e.replace(re, '<b>$1</b>');
+}
+$('cardBtn').onclick = () => {
+  cardPool = vocab.filter(v => !v.learned); if (!cardPool.length) cardPool = vocab.slice();
+  if (!cardPool.length) return status('単語帳が空です。歌詞の単語をタップして登録してください');
+  for (let i = cardPool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cardPool[i], cardPool[j]] = [cardPool[j], cardPool[i]]; }
+  cardI = 0; cardOk = 0;
+  if (player && player.getPlayerState && player.getPlayerState() === 1) player.pauseVideo();
+  $('card').classList.add('show'); showCard();
+};
+function showCard(answer) {
+  const box = $('cardBox');
+  if (cardI >= cardPool.length) {
+    box.innerHTML = `<div class="cw">おつかれさま！</div><div>${cardPool.length} 語中 ${cardOk} 語を「覚えた」にしました</div><div class="row" style="margin-top:14px"><button id="cQuit" class="primary">閉じる</button></div>`;
+    $('cQuit').onclick = () => $('card').classList.remove('show'); return;
+  }
+  const v = cardPool[cardI], i = v.info;
+  let h = `<div class="hint">${cardI + 1} / ${cardPool.length}</div><div class="cw">${esc(v.w)}</div>`;
+  if (v.line) h += `<div class="cctx">“${hiWord(v.line, v.raw)}”</div>`;
+  if (answer) {
+    h += `<div class="ja">${esc(v.ja || '（日本語訳なし）')}</div>`;
+    if (v.trans) h += `<div class="hint">歌詞の訳：${esc(v.trans)}</div>`;
+    if (i && i.meanings && i.meanings[0]) h += `<ol>${i.meanings[0].defs.slice(0, 2).map(d => `<li>${esc(d.d)}</li>`).join('')}</ol>`;
+    h += `<div class="row" style="margin-top:14px"><button id="cNo">✗ まだ</button><button id="cYes" class="primary">✓ 覚えた</button></div>`;
+  } else {
+    h += `<div class="row" style="margin-top:14px"><button id="cShow" class="primary" style="padding:12px 28px">答えを見る</button></div>`;
+  }
+  h += `<div class="row" style="margin-top:10px">` + (i && i.audio ? `<button id="cAudio">🔊 発音</button>` : '') + `<button id="cQuit">終了</button></div>`;
+  box.innerHTML = h;
+  if ($('cAudio')) $('cAudio').onclick = () => new Audio(i.audio).play().catch(() => {});
+  $('cQuit').onclick = () => { $('card').classList.remove('show'); renderVocab(); };
+  if (answer) {
+    $('cNo').onclick = () => { v.reviews = (v.reviews || 0) + 1; cardI++; saveVocab(); showCard(); };
+    $('cYes').onclick = () => { v.reviews = (v.reviews || 0) + 1; v.learned = true; cardOk++; cardI++; saveVocab(); showCard(); };
+  } else $('cShow').onclick = () => showCard(true);
+}
+renderVocab();
+// はじめて（プレイリストが空）のときは使い方を開いておく
+if (!playlist.length) $('helpBox').open = true;
 </script>
 <script src="https://www.youtube.com/iframe_api"></script>
 </body>
