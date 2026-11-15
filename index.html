@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Lyric Overlay</title>
 <!-- ホーム画面に追加すると、ブラウザのバーなしのアプリとして起動する（PWA） -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -10,306 +10,542 @@
 <link rel="icon" type="image/png" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Lyric">
-<meta name="theme-color" content="#0f1115">
+<meta name="theme-color" content="#000000">
 <style>
+  /* ===== iOS ダーク風のデザイントークン ===== */
   :root {
-    --bg: #0f1115; --panel: #181b22; --line: #2a2f3a; --text: #e8eaf0; --muted: #8a91a3;
-    --accent: #4f8cff;
-    --lyric-color: #ffffff; --lyric-size: 44px; --lyric-pos: 8%; --trans-color: #ffe08a;
+    --bg: #000; --bg2: #1c1c1e; --bg3: #2c2c2e; --fill: rgba(118,118,128,.24);
+    --sep: rgba(84,84,88,.55); --label: #fff; --label2: rgba(235,235,245,.6); --label3: rgba(235,235,245,.3);
+    --tint: #0a84ff; --red: #ff453a; --green: #30d158;
+    --lyric-color: #fff; --trans-color: #ffe08a; --lyric-size: 24px; --dim: .4;
+    --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
+    --tabbar-h: calc(50px + var(--safe-b));
+    color-scheme: dark;
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, "Segoe UI", "Yu Gothic UI", sans-serif; }
-  header { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  header h1 { font-size: 16px; margin: 0 12px 0 0; }
-  input, textarea, select, button { font: inherit; color: var(--text); background: #11141a; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
-  button { cursor: pointer; background: #222838; }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.rec { background: #c0392b; border-color: #c0392b; color: #fff; }
-  main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; padding: 16px; }
-  @media (max-width: 1000px) { main { grid-template-columns: minmax(0, 1fr); } }
-  /* 横はみ出し防止：長い単語・曲名でも画面幅を超えないように */
-  html, body { max-width: 100%; overflow-x: clip; }
-  #top, #ctrls, main > aside { min-width: 0; }
-  input, select, textarea, button { max-width: 100%; min-width: 0; }
-  #status, #nowText, #nowTrans, #alignText, #results div, #lines div, #dict, .hint, #cur, #trans, #next { overflow-wrap: anywhere; word-break: normal; }
-  header input#url { min-width: 0 !important; flex: 1; }
-  #stage { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; }
-  #stage:fullscreen { border-radius: 0; aspect-ratio: auto; }
-  #player, #stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
-  #overlay { position: absolute; left: 0; right: 0; bottom: var(--lyric-pos); text-align: center; pointer-events: none; padding: 0 4%; }
-  #overlay.top { bottom: auto; top: var(--lyric-pos); }
-  #overlay.middle { bottom: auto; top: 50%; transform: translateY(-50%); }
-  /* 映像の上の複数行：今の行だけ明るく、前後の行は少し暗く（文字の大きさは同じ） */
-  #overlay .ol { color: var(--lyric-color); font-size: calc(var(--lyric-size) * var(--fit, 1)); font-weight: 800; line-height: 1.25; margin: .12em 0;
-                 text-shadow: 0 0 6px #000, 0 2px 4px #000, 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
-                 animation: olIn .25s ease; }
-  @keyframes olIn { from { opacity: 0; } to { opacity: 1; } }
-  #overlay .ol .otr { color: var(--trans-color); font-size: .6em; font-weight: 700; margin-top: .1em; }
-  #stage:fullscreen #overlay .ol, #stage.pseudo-fs #overlay .ol { font-size: calc(var(--lyric-size) * 1.6 * var(--fit, 1)); }
-  #ver { font-size: 11px; color: var(--muted); margin-left: auto; }
-  #updBar { display: none; background: var(--accent); color: #fff; padding: 8px 12px; text-align: center; font-size: 14px; }
-  #updBar.show { display: block; }
-  #updBar button { margin-left: 8px; background: #fff; color: #1d3f9a; border: 0; font-weight: 700; }
-  /* 映像を暗くするフィルター（歌詞を読みやすく） */
-  #dimmer { position: absolute; inset: 0; background: #000; opacity: var(--dim, .4); pointer-events: none; }
-  /* iPhone Safari は div の全画面化に非対応 → 画面いっぱいに広げる代替表示 */
-  #stage.pseudo-fs { position: fixed; inset: 0; z-index: 1000; aspect-ratio: auto; border-radius: 0; }
-  #exitFs { display: none; position: absolute; top: 10px; right: 10px; z-index: 2; background: rgba(0,0,0,.55); border: 0; color: #fff; font-size: 18px; }
-  #stage.pseudo-fs #exitFs { display: block; }
-  #tapBtn { display: none; width: 100%; padding: 18px; font-size: 18px; margin-top: 6px; }
-  #tapBtn.show { display: block; }
-  #lines { position: relative; }
-  /* 今の行（単語タップ用） */
-  #nowLine { margin-top: 6px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
-  #nowText { font-size: 18px; line-height: 1.7; min-height: 1.7em; }
-  #nowTrans { color: var(--trans-color); font-size: 13px; }
-  .w { cursor: pointer; border-radius: 4px; padding: 0 1px; }
-  .w:hover { background: #2a3550; }
-  .w.sel { background: var(--accent); color: #fff; }
-  /* 辞書ポップアップ */
-  #dict { position: fixed; left: 8px; right: 8px; bottom: 8px; max-width: 520px; margin: 0 auto; max-height: 55vh; overflow: auto;
-          background: #1e2330; border: 1px solid var(--accent); border-radius: 12px; padding: 14px; z-index: 2000; display: none; box-shadow: 0 8px 30px rgba(0,0,0,.6); }
-  #dict.show { display: block; }
-  #dict .hw { font-size: 22px; font-weight: 800; }
-  #dict .ph { color: var(--muted); margin-left: 6px; font-weight: 400; font-size: 15px; }
-  #dict .ja { font-size: 18px; color: var(--trans-color); margin: 4px 0 6px; }
-  #dict .pos { color: var(--accent); font-size: 12px; margin-top: 8px; font-weight: 700; }
-  #dict ol { margin: 2px 0 0 20px; padding: 0; }
-  #dict li { margin-bottom: 3px; }
-  #dict .ex { color: var(--muted); font-style: italic; font-size: 13px; }
-  /* 動画下の複数行表示 */
-  #nowText .ln { color: var(--muted); font-size: 15px; line-height: 1.6; padding: 1px 0; overflow-wrap: anywhere; }
-  #nowText .ln.cur { color: var(--text); font-size: 18px; font-weight: 700; }
-  #nowText .ln .tr { color: var(--trans-color); font-size: 13px; font-weight: 400; }
-  /* 単語帳 */
-  #vocab { max-height: 380px; overflow: auto; }
-  .vitem { padding: 8px 4px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
-  .vitem.done { opacity: .55; }
-  .vitem .vw b { font-size: 16px; cursor: pointer; }
-  .vitem .ja { color: var(--trans-color); margin-left: 6px; }
-  .vitem .vctx { color: var(--muted); font-size: 12px; font-style: italic; }
-  .vitem .row { margin: 4px 0 0; }
-  .vitem button { padding: 2px 8px; font-size: 12px; }
-  #card { position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 2100; display: none; align-items: center; justify-content: center; padding: 16px; }
-  #card.show { display: flex; }
-  #cardBox { background: #1e2330; border: 1px solid var(--accent); border-radius: 14px; padding: 20px; width: 100%; max-width: 480px; text-align: center; overflow-wrap: anywhere; }
-  #cardBox .cw { font-size: 30px; font-weight: 800; margin: 6px 0; }
-  #cardBox .cctx { color: var(--muted); font-style: italic; margin: 8px 0; }
-  #cardBox .cctx b { color: var(--text); font-style: normal; }
-  #cardBox .ja { font-size: 20px; color: var(--trans-color); margin: 8px 0; }
-  #cardBox .row { justify-content: center; }
-  #cardBox ol { text-align: left; margin: 4px 0 0 20px; padding: 0; font-size: 13px; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--label); overflow: hidden;
+    font: 17px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  input, textarea, select { font: inherit; color: var(--label); }
+  svg.i { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* ===== 画面（タブ）＝それぞれ独立してスクロール ===== */
+  .screen { position: fixed; top: 0; bottom: var(--tabbar-h); left: 0; right: 0; overflow-y: auto; overflow-x: hidden;
+            -webkit-overflow-scrolling: touch; background: var(--bg); }
+  .screen > .inner { max-width: 640px; margin: 0 auto; padding-bottom: 24px; }
+  .screen.layer { z-index: 2; display: none; }
+  .screen.layer.active { display: block; }
+  #scr-play { z-index: 1; }
+
+  /* ナビゲーションバー */
+  .nav { position: sticky; top: 0; z-index: 5; padding: calc(var(--safe-t) + 6px) 16px 8px;
+         background: rgba(0,0,0,.82); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
+  .nav h1 { margin: 6px 0 0; font-size: 32px; font-weight: 800; letter-spacing: .3px; }
+  .nav .navrow { display: flex; align-items: center; justify-content: space-between; min-height: 36px; gap: 8px; }
+  .navbtn { color: var(--tint); display: inline-flex; align-items: center; gap: 4px; font-size: 17px; min-height: 36px; }
+  .navbtn svg.i { width: 26px; height: 26px; }
+  .navtitle { flex: 1; text-align: center; font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ===== 再生画面 ===== */
+  #playTop { position: sticky; top: 0; z-index: 5; background: var(--bg); padding-top: var(--safe-t); }
+  #playTop .navrow { padding: 6px 12px 6px; display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  #stage { position: relative; width: calc(100% - 24px); margin: 0 12px; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; }
+  #player, #stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  #dimmer { position: absolute; inset: 0; background: #000; opacity: var(--dim); pointer-events: none; }
+  #overlay { position: absolute; left: 0; right: 0; text-align: center; pointer-events: none; padding: 0 4%; }
+  #overlay.middle { top: 50%; transform: translateY(-50%); }
+  #overlay.top { top: 7%; } #overlay.bottom { bottom: 7%; }
+  #overlay .ol { color: var(--lyric-color); font-size: calc(var(--lyric-size) * var(--fit, 1)); font-weight: 700; line-height: 1.28; margin: .14em 0;
+                 text-shadow: 0 1px 3px rgba(0,0,0,.9), 0 0 12px rgba(0,0,0,.6); overflow-wrap: anywhere; animation: fadeIn .25s ease; }
+  #overlay .otr { color: var(--trans-color); font-size: .62em; font-weight: 600; margin-top: .08em; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  #exitFs { display: none; position: absolute; top: calc(var(--safe-t) + 10px); right: 14px; z-index: 3; width: 36px; height: 36px; border-radius: 50%;
+            background: rgba(60,60,67,.6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); color: #fff; font-size: 17px; }
+  body.fs #scr-play { z-index: 50; bottom: 0; }
+  body.fs #tabbar { display: none; }
+  body.fs #stage { position: fixed; inset: 0; width: auto; margin: 0; border-radius: 0; aspect-ratio: auto; z-index: 60; }
+  body.fs #exitFs { display: block; }
+  body.fs #overlay .ol { font-size: calc(var(--lyric-size) * 1.5 * var(--fit, 1)); }
+  #stage:fullscreen #overlay .ol { font-size: calc(var(--lyric-size) * 1.5 * var(--fit, 1)); }
+
+  #lyricChip { display: flex; align-items: center; gap: 6px; margin: 10px 16px 0; padding: 7px 12px; border-radius: 16px; background: var(--bg2);
+               font-size: 13px; color: var(--label2); max-width: calc(100% - 32px); }
+  #lyricChip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #lyricChip b { color: var(--tint); font-weight: 600; margin-left: auto; flex: none; }
+  #nowCard { margin: 10px 16px 0; padding: 12px 14px; background: var(--bg2); border-radius: 14px; }
+  #nowText .ln { color: var(--label2); font-size: 16px; line-height: 1.55; overflow-wrap: anywhere; }
+  #nowText .ln.cur { color: var(--label); font-weight: 600; }
+  #nowText .tr { color: var(--trans-color); font-size: 13px; }
+  #nowText .placeholder { color: var(--label3); font-size: 14px; }
+  .w { border-radius: 5px; padding: 0 1px; cursor: pointer; }
+  .w.sel { background: var(--tint); color: #fff; }
+
+  .ctl-row { display: flex; justify-content: space-around; align-items: center; margin: 14px 8px 0; }
+  .ctl { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 62px; font-size: 11px; color: var(--label); }
+  .ctl svg.i { width: 27px; height: 27px; }
+  .ctl.on { color: var(--tint); }
+  .ctl:active { opacity: .5; }
+  .ctl .rate { font-size: 19px; font-weight: 700; height: 27px; line-height: 27px; }
+  #playBtn { width: 66px; height: 66px; border-radius: 50%; background: var(--label); color: #000; display: grid; place-items: center; }
+  #playBtn svg { width: 30px; height: 30px; fill: currentColor; stroke: none; }
+  #playBtn:active { transform: scale(.94); }
+  .pill-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 16px 16px 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 18px; background: var(--bg2); font-size: 14px; }
+  .pill svg.i { width: 18px; height: 18px; }
+  .pill:active { background: var(--bg3); }
+
+  /* 最初の画面（動画を開く） */
+  #empty { margin: 8px 16px; padding: 28px 20px; border-radius: 18px; background: var(--bg2); text-align: center; }
+  #empty .big { font-size: 46px; }
+  #empty h2 { margin: 6px 0 6px; font-size: 22px; }
+  #empty p { margin: 0 0 18px; color: var(--label2); font-size: 15px; }
+  #empty .list { background: var(--bg3); }
+  [data-openfrom] { white-space: nowrap; flex: none; }
+
+  /* ===== 共通部品（iOS 風） ===== */
+  .section { margin: 0 16px 22px; }
+  .shdr { margin: 0 16px 6px; font-size: 13px; color: var(--label2); }
+  .sfoot { margin: 6px 16px 0; font-size: 12.5px; color: var(--label2); }
+  .list { background: var(--bg2); border-radius: 12px; overflow: hidden; }
+  .cell { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 10px 16px; text-align: left; position: relative; }
+  .cell + .cell::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: .5px solid var(--sep); }
+  button.cell:active, .cell.tap:active { background: var(--bg3); }
+  .cmain { flex: 1; min-width: 0; }
+  .ctitle { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .csub { font-size: 13px; color: var(--label2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cval { color: var(--label2); font-size: 16px; }
+  .chev { color: var(--label3); width: 18px !important; height: 18px !important; }
+  .cell.blue { color: var(--tint); } .cell.red { color: var(--red); }
+  .cell.muted { color: var(--label2); font-size: 15px; justify-content: center; }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--fill); color: var(--label2); flex: none; }
+  .badge.blue { background: rgba(10,132,255,.2); color: #64a8ff; } .badge.green { background: rgba(48,209,88,.2); color: #5fe07f; }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 50px; border-radius: 12px; font-size: 17px; font-weight: 600; }
+  .btn-primary { background: var(--tint); color: #fff; } .btn-gray { background: var(--bg3); color: var(--tint); }
+  .btn:active { opacity: .7; }
+  .btn + .btn { margin-top: 10px; }
+  .field { width: 100%; border: 0; outline: 0; background: transparent; padding: 12px 16px; font-size: 17px; }
+  .list .field + .field { border-top: .5px solid var(--sep); }
+  .searchbox { display: flex; align-items: center; gap: 6px; background: var(--fill); border-radius: 10px; padding: 0 10px; }
+  .searchbox input { flex: 1; border: 0; outline: 0; background: transparent; padding: 9px 0; font-size: 17px; }
+  .searchbox svg.i { width: 18px; height: 18px; color: var(--label2); }
+  textarea.field { min-height: 160px; resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; }
+  /* セグメント */
+  .seg { display: flex; background: var(--fill); border-radius: 9px; padding: 2px; }
+  .seg button { flex: 1; padding: 6px 0; border-radius: 7px; font-size: 13px; font-weight: 500; }
+  .seg button.on { background: #636366; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  /* スイッチ */
+  input.switch { -webkit-appearance: none; appearance: none; width: 51px; height: 31px; border-radius: 16px; background: #39393d; position: relative; flex: none; transition: background .2s; margin: 0; }
+  input.switch::before { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.3); transition: transform .2s; }
+  input.switch:checked { background: var(--green); }
+  input.switch:checked::before { transform: translateX(20px); }
+  /* ステッパー */
+  .stepper { display: inline-flex; background: var(--fill); border-radius: 8px; flex: none; }
+  .stepper button { width: 46px; height: 32px; font-size: 20px; }
+  .stepper button + button { border-left: .5px solid var(--sep); }
+  input[type=range] { accent-color: var(--tint); width: 100%; }
+  input[type=color] { width: 44px; height: 30px; border: 0; padding: 0; background: none; }
+
+  /* ===== タブバー ===== */
+  #tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; height: var(--tabbar-h); padding-bottom: var(--safe-b);
+            display: flex; background: rgba(22,22,24,.86); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+            border-top: .5px solid var(--sep); }
+  #tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10px; font-weight: 500; color: #8e8e93; }
+  #tabbar button.on { color: var(--tint); }
+  #tabbar svg.i { width: 25px; height: 25px; }
+
+  /* ===== シート（下から出るパネル） ===== */
+  #backdrop { position: fixed; inset: 0; z-index: 90; display: none; }
+  #backdrop.show { display: block; } #backdrop.dim { background: rgba(0,0,0,.45); }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 100; max-width: 640px; margin: 0 auto; max-height: 86vh; overflow-y: auto;
+           background: var(--bg2); border-radius: 14px 14px 0 0; padding: 6px 16px calc(18px + var(--safe-b));
+           transform: translateY(105%); transition: transform .32s cubic-bezier(.2,.85,.25,1); box-shadow: 0 -8px 30px rgba(0,0,0,.5); }
+  .sheet.open { transform: none; }
+  .sheet.short { max-height: 62vh; }
+  .grab { width: 36px; height: 5px; border-radius: 3px; background: var(--label3); margin: 2px auto 8px; }
+  .shead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .shead h3 { margin: 0; font-size: 19px; }
+  .shead .done { color: var(--tint); font-weight: 600; }
+  .sheet .list { background: var(--bg3); }
+  .sheet .btn-gray { background: #3a3a3c; }
+
+  /* 辞書 */
+  .dword { font-size: 30px; font-weight: 800; }
+  .dsub { color: var(--label2); font-size: 15px; }
+  .dja { font-size: 20px; color: var(--trans-color); margin: 6px 0 12px; font-weight: 600; }
+  .dpos { color: var(--tint); font-size: 13px; font-weight: 600; margin-top: 12px; }
+  .sheet ol { margin: 4px 0 0 20px; padding: 0; font-size: 15px; }
+  .sheet li { margin-bottom: 4px; }
+  .dex { color: var(--label2); font-style: italic; font-size: 13.5px; }
+  .actions { display: flex; gap: 8px; margin: 4px 0 6px; flex-wrap: wrap; }
+  .actions .btn { flex: 1 1 140px; height: 44px; font-size: 15px; margin: 0; }
+  .roundbtn { width: 36px; height: 36px; border-radius: 50%; background: var(--bg3); color: var(--tint); display: inline-grid; place-items: center; vertical-align: middle; }
+  .roundbtn svg.i { width: 18px; height: 18px; }
+
+  /* タイミング */
+  .offbox { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .offbox .btn { flex: 1; height: 46px; font-size: 15px; margin: 0; }
+  #offQ { font-size: 24px; font-weight: 700; min-width: 90px; text-align: center; font-variant-numeric: tabular-nums; }
+  #alignBox { margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--bg3); }
+  #alignText { font-size: 18px; font-weight: 700; margin: 6px 0 12px; overflow-wrap: anywhere; }
+  #alTap { height: 64px; font-size: 18px; }
+
+  /* 時刻付けリスト */
+  #lines { max-height: 34vh; overflow: auto; margin-top: 10px; border-radius: 10px; background: var(--bg3); position: relative; }
+  #lines div { padding: 6px 12px; display: flex; gap: 10px; font-size: 14px; cursor: pointer; }
+  #lines div .t { color: var(--label2); font-family: ui-monospace, Menlo, Consolas, monospace; min-width: 64px; }
+  #lines div.on { background: rgba(10,132,255,.25); }
+  #lines div.notime .t { color: var(--red); }
+  #lines div.target { outline: 2px solid var(--tint); outline-offset: -2px; }
+
   /* プレイリスト */
-  #pl .item { display: flex; align-items: center; gap: 6px; padding: 6px 4px; border-bottom: 1px solid var(--line); }
-  #pl .item.cur { background: #24304a; border-radius: 6px; }
-  #pl .name { flex: 1; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #pl .item button { padding: 2px 8px; }
-  /* レイアウト：PC は左に動画＋操作、右にパネル。スマホは縦に並べて「動画＋今の歌詞」だけ上部に固定 */
-  main { grid-template-areas: "top side" "ctrl side"; grid-template-rows: auto 1fr; }
-  #top { grid-area: top; } #ctrls { grid-area: ctrl; align-self: start; } aside { grid-area: side; }
-  @media (max-width: 1000px) {
-    main { grid-template-areas: "top" "ctrl" "side"; grid-template-rows: auto; }
-    #top { position: sticky; top: 0; z-index: 10; background: var(--bg); padding-bottom: 4px; }
-  }
-  /* 操作ボタンのグループ */
-  #ctrls { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px 10px; }
-  .grp { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
-  .gl { min-width: 72px; font-size: 12px; color: var(--muted); font-weight: 600; }
-  .seg { display: inline-flex; }
-  .seg button { border-radius: 0; margin-left: -1px; }
-  .seg button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
-  .seg button:last-child { border-radius: 0 6px 6px 0; }
-  .seg button.on, button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-  /* たためるパネル */
-  details.panel > summary { cursor: pointer; font-weight: 600; }
-  details.panel[open] > summary { margin-bottom: 8px; }
-  ol.help { margin: 0 0 6px 18px; padding: 0; line-height: 1.7; }
-  @media (max-width: 600px) {
-    /* iPhone は 16px 未満の入力欄をタップすると勝手にズームして横スクロールが出るので 16px に */
-    input, select, textarea { font-size: 16px; }
-    header { padding: 8px; }
-    header input#url { flex: 1 1 100%; }
-    .row label { min-width: auto; }
-    input[type=range] { flex: 1 1 120px; }
-    main { padding: 8px; gap: 8px; }
-    :root { --lyric-size: 22px; }
-    header h1 { display: none; }
-  }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-  .panel h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
-  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
-  .row label { color: var(--muted); min-width: 64px; }
-  textarea { width: 100%; min-height: 220px; resize: vertical; font-family: Consolas, monospace; font-size: 12.5px; }
-  #transText { min-height: 100px; }
-  #lines { max-height: 260px; overflow: auto; font-size: 13px; }
-  #lines div { padding: 3px 6px; border-radius: 4px; cursor: pointer; display: flex; gap: 8px; }
-  #lines div .t { color: var(--muted); font-family: Consolas, monospace; min-width: 62px; }
-  #lines div.on { background: #24304a; }
-  #lines div.notime .t { color: #c0392b; }
-  #status { color: var(--muted); font-size: 12px; min-height: 1.4em; }
-  #results div { padding: 4px 6px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13px; }
-  #results div:hover { background: #222838; }
-  .hint { color: var(--muted); font-size: 12px; }
-  kbd { background: #2a2f3a; border-radius: 3px; padding: 0 4px; font-size: 11px; }
+  .thumb { width: 72px; height: 41px; border-radius: 6px; object-fit: cover; background: var(--bg3); flex: none; }
+  .nowplaying { color: var(--tint); font-size: 12px; font-weight: 600; flex: none; }
+  .delbtn { width: 24px; height: 24px; border-radius: 50%; background: var(--red); color: #fff; font-weight: 700; line-height: 22px; text-align: center; flex: none; }
+  .upbtn { color: var(--label2); padding: 6px; flex: none; }
+
+  /* 単語帳 */
+  .ja-inline { color: var(--trans-color); margin-left: 8px; font-size: 15px; }
+
+  /* 単語カード */
+  #card { position: fixed; inset: 0; z-index: 120; background: rgba(0,0,0,.92); display: none; flex-direction: column; padding: calc(var(--safe-t) + 12px) 16px calc(var(--safe-b) + 16px); }
+  #card.show { display: flex; }
+  #cardBox { flex: 1; display: flex; flex-direction: column; justify-content: center; text-align: center; max-width: 520px; width: 100%; margin: 0 auto; overflow-wrap: anywhere; }
+  #cardBox .count { color: var(--label2); font-size: 14px; }
+  #cardBox .cw { font-size: 40px; font-weight: 800; margin: 18px 0 8px; }
+  #cardBox .cctx { color: var(--label2); font-size: 16px; margin: 6px 0 18px; }
+  #cardBox .cctx b { color: var(--label); }
+  #cardBox .ja { font-size: 24px; color: var(--trans-color); font-weight: 700; margin: 8px 0; }
+  #cardBox ol { text-align: left; margin: 10px auto 0; max-width: 440px; color: var(--label2); font-size: 15px; }
+  .cardbtns { display: flex; gap: 10px; max-width: 520px; width: 100%; margin: 0 auto; }
+  .cardbtns .btn { flex: 1; margin: 0; }
+
+  /* トースト・更新バー */
+  #toast { position: fixed; left: 50%; top: calc(var(--safe-t) + 12px); transform: translate(-50%, -20px); z-index: 200; opacity: 0; pointer-events: none;
+           max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 14px; background: rgba(58,58,60,.95); font-size: 14px; text-align: center;
+           -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); transition: opacity .25s, transform .25s; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #updBar { position: fixed; left: 12px; right: 12px; bottom: calc(var(--tabbar-h) + 10px); z-index: 150; max-width: 616px; margin: 0 auto; display: none;
+            align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px 10px 16px; border-radius: 14px; background: var(--tint); font-size: 15px; font-weight: 600; }
+  #updBar.show { display: flex; }
+  #updBar button { background: #fff; color: var(--tint); border-radius: 16px; padding: 6px 14px; font-size: 14px; font-weight: 700; }
+  .help { margin: 0; padding: 12px 16px 12px 34px; font-size: 15px; line-height: 1.6; color: var(--label2); }
+  .help b { color: var(--label); }
 </style>
 </head>
 <body>
-<div id="updBar">新しい版があります<button id="updBtn">更新する</button></div>
-<header>
-  <h1>🎵 Lyric Overlay</h1>
-  <input id="url" placeholder="① YouTube の URL をここに貼り付け">
-  <button class="primary" id="loadBtn">▶ 動画を開く</button>
-  <button id="fsBtn">⛶ 歌詞つき全画面</button>
-</header>
 
-<main>
-  <!-- 動画＋今の歌詞（スマホでは画面上部に固定） -->
-  <div id="top">
-    <div id="stage">
-      <div id="player"></div>
-      <div id="dimmer"></div>
-      <div id="overlay" class="middle"></div>
-      <button id="exitFs">✕</button>
-    </div>
-    <div id="status"></div>
-    <div id="nowLine">
-      <div id="nowText"><span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span></div>
-    </div>
-    <div id="alignBox" class="panel" style="display:none;margin:6px 0 0;border-color:var(--accent)">
-      <div class="hint">① 動画を再生したまま、この歌詞が<b>歌われるのを待つ</b></div>
-      <div id="alignText" style="font-size:18px;font-weight:700;margin:4px 0 8px"></div>
-      <button id="alTap" class="primary" style="width:100%;padding:16px;font-size:18px">② 歌い始めた瞬間にここをタップ！</button>
-      <div class="row" style="margin-top:6px">
-        <button id="alPrev">◀ 前の行にする</button><button id="alNext">次の行にする ▶</button><button id="alCancel">やめる</button>
+<!-- ======================= 再生 ======================= -->
+<section class="screen" id="scr-play">
+  <div class="inner">
+    <div id="playTop">
+      <div class="navrow">
+        <button class="navbtn" id="openBtn" aria-label="動画を開く"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="navtitle" id="songTitle">Lyric</div>
+        <button class="navbtn" id="favBtn" aria-label="プレイリストに保存"><svg class="i" viewBox="0 0 24 24" id="favIcon"><path d="M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.7L12 16.6l-5.1 2.7 1-5.7-4.1-4 5.7-.8z"/></svg></button>
       </div>
-      <div class="hint">もう過ぎてしまったら「次の行にする」で、これから歌われる行を選んでください</div>
+      <div id="stage" hidden>
+        <div id="player"></div>
+        <div id="dimmer"></div>
+        <div id="overlay" class="middle"></div>
+        <button id="exitFs" aria-label="全画面を終了">✕</button>
+      </div>
+    </div>
+
+    <div id="empty">
+      <div class="big">🎬</div>
+      <h2>MV を歌詞つきで見よう</h2>
+      <p>YouTube で好きな洋楽の MV を開き、<br>「共有」→「コピー」してから下のボタンを押してください。<br>歌詞は自動でさがします。</p>
+      <button class="btn btn-primary" data-paste>
+        <svg class="i" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6"/></svg>コピーした URL を貼り付け
+      </button>
+      <div class="list" style="margin-top:12px;display:flex;align-items:center">
+        <input class="field" id="urlInline" placeholder="または URL を入力" inputmode="url" autocomplete="off" autocapitalize="off">
+        <button class="navbtn" style="padding:0 14px" data-openfrom="urlInline">開く</button>
+      </div>
+    </div>
+
+    <button id="lyricChip" hidden><span id="lyricChipText"></span><b>変更</b></button>
+    <div id="nowCard" hidden><div id="nowText"></div></div>
+
+    <div id="controls" hidden>
+      <div class="ctl-row">
+        <button class="ctl" id="againBtn"><svg class="i" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/></svg>行の頭から</button>
+        <button class="ctl" id="prevBtn"><svg class="i" viewBox="0 0 24 24"><path d="M6 6v12"/><path d="M18 6.5 9.5 12l8.5 5.5z" fill="currentColor"/></svg>前の行</button>
+        <button id="playBtn" aria-label="再生・一時停止"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
+        <button class="ctl" id="loopBtn"><svg class="i" viewBox="0 0 24 24"><path d="M4 11V9.5A3.5 3.5 0 0 1 7.5 6H19l-3-3"/><path d="M20 13v1.5a3.5 3.5 0 0 1-3.5 3.5H5l3 3"/></svg>くり返し</button>
+        <button class="ctl" id="rateBtn"><span class="rate" id="rateV">1×</span>速さ</button>
+      </div>
+      <div class="pill-row">
+        <button class="pill" id="timingBtn"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5"/></svg>タイミング調整</button>
+        <button class="pill" id="fsBtn"><svg class="i" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>全画面</button>
+        <button class="pill" id="nextBtn"><svg class="i" viewBox="0 0 24 24"><path d="M18 6v12"/><path d="M6 6.5 14.5 12 6 17.5z" fill="currentColor"/></svg>次の曲</button>
+      </div>
     </div>
   </div>
+</section>
 
-  <!-- 操作ボタン（役割ごとに見出し付き） -->
-  <div id="ctrls">
-    <div class="grp"><span class="gl">聞き直す</span>
-      <button id="againBtn">↺ 今の行を頭から</button>
-      <button id="prevBtn">⏮ 1つ前の行へ</button>
-      <button id="loopBtn">🔁 今の行をくり返す</button>
+<!-- ======================= さがす ======================= -->
+<section class="screen layer" id="scr-search" data-tab="search">
+  <div class="inner">
+    <div class="nav"><h1>歌詞をさがす</h1></div>
+    <div class="section">
+      <div class="list">
+        <input class="field" id="qArtist" placeholder="アーティスト名" autocomplete="off">
+        <input class="field" id="qTitle" placeholder="曲名" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="searchBtn" style="margin-top:12px">
+        <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>検索
+      </button>
     </div>
-    <div class="grp"><span class="gl">再生の速さ</span>
-      <span class="seg" id="rateSeg"><button data-rate="0.5">0.5倍</button><button data-rate="0.75">0.75倍</button><button data-rate="1" class="on">ふつう</button><button data-rate="1.25">1.25倍</button></span>
-      <input type="hidden" id="rate" value="1">
+    <div class="shdr" id="resultsHdr" hidden>検索結果（動画の長さに近い順）</div>
+    <div class="section"><div class="list" id="results" hidden></div>
+      <div class="sfoot"><span class="badge blue">同期</span> タイミング付きですぐ使える　<span class="badge">文字のみ</span> 時刻付けが必要　<span class="badge green">長さ一致</span> この動画と同じ版らしい</div>
     </div>
-    <div class="grp"><span class="gl">歌詞のズレ</span>
-      <button id="offEarly">◀ 歌詞を早く</button>
-      <span id="offQ" style="min-width:52px;text-align:center">±0.0秒</span>
-      <button id="offLate">歌詞を遅く ▶</button>
-      <button id="hereBtn">🎯 自動で合わせる</button>
-    </div>
-    <div class="grp"><span class="gl">保存</span>
-      <button id="favBtn">★ この曲をプレイリストに保存</button>
+    <div class="section">
+      <div class="list">
+        <button class="cell" id="editOpen"><div class="cmain">歌詞・和訳を自分で入力する</div><svg class="i chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+      <div class="sfoot">和訳を入れると、映像の歌詞の下に表示されます。</div>
     </div>
   </div>
+</section>
 
-  <aside>
-    <details class="panel" id="helpBox">
-      <summary>❓ 使い方 <span id="ver">版: 2026-11-15g</span></summary>
-      <ol class="help">
-        <li>いちばん上に YouTube の URL を貼って「<b>▶ 動画を開く</b>」</li>
-        <li>下の「<b>② 歌詞をさがす</b>」で「🔍 歌詞を検索」→ <b>⏱</b> の付いた候補をタップ</li>
-        <li>再生すると歌詞が出ます。<b>単語をタップ</b>すると意味が見られ、「★ 単語帳に追加」で保存できます</li>
-        <li>歌詞が早い・遅いときは「<b>🎯 自動で合わせる</b>」</li>
-        <li>気に入った曲は「<b>★ この曲をプレイリストに保存</b>」。次からはプレイリストの曲名をタップするだけ</li>
-      </ol>
-      <div class="hint">聞き取れない所は「🔁 今の行をくり返す」＋「0.75倍」がおすすめ</div>
-    </details>
-
-    <div class="panel">
-      <h2>② 歌詞をさがす</h2>
-      <div class="row"><input id="qArtist" placeholder="アーティスト名" style="flex:1"><input id="qTitle" placeholder="曲名" style="flex:1"></div>
-      <div class="row"><button id="searchBtn" class="primary">🔍 歌詞を検索</button></div>
-      <div class="hint">⏱ ＝ タイミング付き（すぐ使える）　📝 ＝ 文字だけ（「歌詞に時刻を付ける」が必要）</div>
-      <div id="results"></div>
-    </div>
-
-    <div class="panel">
-      <h2>📜 プレイリスト</h2>
-      <div id="pl"></div>
-      <div class="row" style="margin-top:6px">
-        <button id="nextBtn">⏭ 次の曲へ</button>
-        <label style="min-width:auto"><input type="checkbox" id="autoNext" checked> 曲が終わったら次へ</label>
-        <label style="min-width:auto"><input type="checkbox" id="shuffle"> ランダムな順</label>
+<!-- ======================= プレイリスト ======================= -->
+<section class="screen layer" id="scr-list" data-tab="list">
+  <div class="inner">
+    <div class="nav"><div class="navrow"><span></span><button class="navbtn" id="plEdit">編集</button></div><h1>プレイリスト</h1></div>
+    <div class="section"><div class="list" id="pl"></div></div>
+    <div class="section">
+      <div class="list">
+        <label class="cell"><div class="cmain">曲が終わったら次の曲へ</div><input type="checkbox" class="switch" id="autoNext"></label>
+        <label class="cell"><div class="cmain">ランダムな順で再生</div><input type="checkbox" class="switch" id="shuffle"></label>
       </div>
     </div>
+  </div>
+</section>
 
-    <div class="panel">
-      <h2>📒 単語帳 <span id="vocabCount"></span></h2>
-      <div class="row"><button id="cardBtn" class="primary">🃏 カードで復習する</button></div>
-      <div class="row">
-        <input id="vocabSearch" placeholder="単語・意味・曲名で検索" style="flex:1">
-        <select id="vocabFilter"><option value="todo">まだ覚えてない</option><option value="all">すべて</option><option value="done">覚えた</option></select>
-      </div>
-      <div id="vocab"></div>
+<!-- ======================= 単語帳 ======================= -->
+<section class="screen layer" id="scr-vocab" data-tab="vocab">
+  <div class="inner">
+    <div class="nav"><h1>単語帳</h1></div>
+    <div class="section">
+      <button class="btn btn-primary" id="cardBtn"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="6" width="14" height="13" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v11"/></svg><span id="cardBtnText">カードで復習</span></button>
     </div>
+    <div class="section">
+      <div class="seg" id="vocabSeg"><button data-v="todo" class="on">まだ</button><button data-v="done">覚えた</button><button data-v="all">すべて</button></div>
+      <div class="searchbox" style="margin-top:10px"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="vocabSearch" placeholder="検索" autocomplete="off"></div>
+    </div>
+    <div class="section"><div class="list" id="vocab"></div></div>
+  </div>
+</section>
 
-    <details class="panel">
-      <summary>💾 バックアップ（機種変更・データ消去の前に）</summary>
-      <div class="hint">プレイリストと単語帳は、この端末のブラウザの中だけに保存されています。ファイルに書き出しておくと、別の端末や消えた後でも復元できます。</div>
-      <div class="row" style="margin-top:6px"><button id="plExport">💾 バックアップを保存</button><button id="plImportBtn">📂 バックアップから復元</button><input type="file" id="plImport" accept=".json" hidden></div>
-      <div class="row"><button id="vocabCsv">📄 単語帳を CSV で書き出す（Excel・Anki 用）</button></div>
-    </details>
+<!-- ======================= 設定 ======================= -->
+<section class="screen layer" id="scr-set" data-tab="set">
+  <div class="inner">
+    <div class="nav"><h1>設定</h1></div>
 
-    <details class="panel">
-      <summary>⚙ 表示の設定（文字の大きさ・色・行数）</summary>
-      <div class="row"><label>動画の上の文字</label><input type="range" id="size" min="20" max="90" value="44"></div>
-      <div class="row"><label>映像の上の行数</label><select id="ovLines"><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
-      <div class="row"><label>映像の暗さ</label><input type="range" id="dim" min="0" max="90" value="40" style="flex:1"><span id="dimV">40%</span></div>
-      <div class="row"><label>文字の位置</label><select id="pos"><option value="middle" selected>中央</option><option value="bottom">下</option><option value="top">上</option></select><input type="range" id="posv" min="2" max="40" value="8"></div>
-      <div class="row"><label>歌詞の色</label><input type="color" id="color" value="#ffffff"><label>和訳の色</label><input type="color" id="tcolor" value="#ffe08a"></div>
-      <div class="row"><label>動画の下の行数</label><select id="nLines"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select><span class="hint">（単語タップ用）</span></div>
-      <div class="row"><label>ズレ（細かく）</label><input type="range" id="offset" min="-30000" max="30000" step="50" value="0" style="flex:1"><span id="offsetV">0 ms</span></div>
-    </details>
+    <div class="shdr">映像の上の歌詞</div>
+    <div class="section"><div class="list">
+      <div class="cell"><div class="cmain">一度に表示する行数</div><span class="cval" id="ovLinesV"></span>
+        <span class="stepper"><button data-k="ovLines" data-d="-1">−</button><button data-k="ovLines" data-d="1">＋</button></span></div>
+      <div class="cell" style="flex-wrap:wrap"><div class="cmain">文字の大きさ</div><span class="cval" id="sizeV"></span><input type="range" id="sizeR" min="14" max="60"></div>
+      <div class="cell" style="flex-wrap:wrap"><div class="cmain">映像の暗さ</div><span class="cval" id="dimV"></span><input type="range" id="dimR" min="0" max="90"></div>
+      <div class="cell"><div class="cmain">位置</div><div class="seg" id="posSeg" style="width:170px"><button data-v="top">上</button><button data-v="middle">中央</button><button data-v="bottom">下</button></div></div>
+      <div class="cell"><div class="cmain">歌詞の色</div><input type="color" id="colorI"></div>
+      <div class="cell"><div class="cmain">和訳の色</div><input type="color" id="tcolorI"></div>
+    </div><div class="sfoot">指定した行数ごとにまとめて切り替わります。長い行は映像に収まるよう自動で小さくなります。</div></div>
 
-    <details class="panel">
-      <summary>✏️ 歌詞・和訳を自分で入力する</summary>
-      <h2>歌詞（タイミング付き LRC でも、文字だけでも OK）</h2>
-      <textarea id="lyricText" placeholder="[00:12.30]1行目の歌詞&#10;[00:16.80]2行目の歌詞&#10;&#10;文字だけの歌詞なら、下の「歌詞に時刻を付ける」でタイミングを付けられます"></textarea>
-      <div class="row" style="margin-top:6px">
-        <button id="applyBtn" class="primary">✓ この歌詞・和訳を使う</button>
-        <label class="hint" style="min-width:auto">ファイルから: <input type="file" id="lrcFile" accept=".lrc,.txt,.srt" style="width:160px"></label>
-      </div>
-      <h2 style="margin-top:10px">和訳（歌詞と同じ行の順番で1行ずつ）</h2>
-      <textarea id="transText" placeholder="1行目の訳&#10;2行目の訳"></textarea>
-    </details>
+    <div class="shdr">動画の下の歌詞（単語タップ用）</div>
+    <div class="section"><div class="list">
+      <div class="cell"><div class="cmain">行数</div><span class="cval" id="nLinesV"></span>
+        <span class="stepper"><button data-k="nLines" data-d="-1">−</button><button data-k="nLines" data-d="1">＋</button></span></div>
+    </div><div class="sfoot">ここの単語をタップすると意味が見られ、単語帳に追加できます。</div></div>
 
-    <details class="panel">
-      <summary>⏱ 歌詞に時刻を付ける（文字だけの歌詞のとき）</summary>
-      <div class="hint">「始める」を押して曲を再生し、各行が歌い始めた瞬間に大きなボタン（PC は <kbd>Space</kbd>）を押します。間違えたら <kbd>Backspace</kbd> または行をタップでやり直し。</div>
-      <div class="row" style="margin-top:6px"><button id="syncBtn">⏱ 時刻付けを始める</button></div>
-      <button id="tapBtn" class="primary">● 今この行が始まった！</button>
-      <div id="lines"></div>
-    </details>
+    <div class="shdr">データ</div>
+    <div class="section"><div class="list">
+      <button class="cell blue" id="plExport">バックアップを保存</button>
+      <button class="cell blue" id="plImportBtn">バックアップから復元</button>
+      <button class="cell blue" id="vocabCsv">単語帳を CSV で書き出す</button>
+    </div><input type="file" id="plImport" accept=".json,application/json" hidden>
+    <div class="sfoot">プレイリストと単語帳はこの端末の中だけに保存されています。機種変更やデータ消去の前にバックアップしてください。</div></div>
 
-    <details class="panel">
-      <summary>🎬 字幕ファイルに書き出す（PC で動画を作る人向け）</summary>
-      <div class="row">
-        <button data-exp="lrc">LRC 形式</button><button data-exp="srt">SRT 形式</button><button data-exp="ass">ASS 形式（色・位置付き）</button>
-      </div>
-      <div class="hint">ASS を <code>burn.py</code> で手元の動画ファイルに焼き込むと歌詞付き動画になります。</div>
-    </details>
-  </aside>
-</main>
+    <div class="shdr">字幕ファイルに書き出す（PC で動画を作る人向け）</div>
+    <div class="section"><div class="list">
+      <button class="cell blue" data-exp="lrc">LRC 形式</button>
+      <button class="cell blue" data-exp="srt">SRT 形式</button>
+      <button class="cell blue" data-exp="ass">ASS 形式（色・位置付き）</button>
+    </div></div>
 
-<div id="dict"><button id="dictClose" style="float:right">✕</button><div id="dictBody"></div></div>
+    <div class="shdr">使い方</div>
+    <div class="section"><div class="list"><ol class="help">
+      <li>YouTube アプリで MV を開き「共有」→「コピー」</li>
+      <li>このアプリの「再生」で <b>貼り付け</b>（右上の ＋ からも）。歌詞は自動でさがします</li>
+      <li>違う歌詞が出たら「歌詞」の <b>変更</b> から選び直す</li>
+      <li>ズレていたら <b>タイミング調整</b> →「自動で合わせる」</li>
+      <li>下の歌詞の<b>単語をタップ</b>で意味。<b>単語帳に追加</b>して「カードで復習」</li>
+      <li>気に入った曲は右上の <b>☆</b> でプレイリストに保存</li>
+    </ol></div>
+    <div class="sfoot"><span id="ver">版: 2026-11-15h</span></div></div>
+  </div>
+</section>
+
+<!-- ======================= タブバー ======================= -->
+<nav id="tabbar">
+  <button data-tab="play" class="on"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M10 8.3v7.4l6-3.7z" fill="currentColor"/></svg>再生</button>
+  <button data-tab="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>さがす</button>
+  <button data-tab="list"><svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg>リスト</button>
+  <button data-tab="vocab"><svg class="i" viewBox="0 0 24 24"><path d="M12 6.5C10 5 7.5 4.5 4 4.5v13c3.5 0 6 .5 8 2 2-1.5 4.5-2 8-2v-13c-3.5 0-6 .5-8 2zM12 6.5v13"/></svg>単語帳</button>
+  <button data-tab="set"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg>設定</button>
+</nav>
+
+<!-- ======================= シート ======================= -->
+<div id="backdrop"></div>
+
+<div class="sheet" id="sheet-open">
+  <div class="grab"></div>
+  <div class="shead"><h3>動画を開く</h3><button class="done" data-close>閉じる</button></div>
+  <button class="btn btn-primary" data-paste><svg class="i" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6"/></svg>コピーした URL を貼り付け</button>
+  <div class="list" style="margin-top:12px;display:flex;align-items:center">
+    <input class="field" id="urlSheet" placeholder="または URL を入力" inputmode="url" autocomplete="off" autocapitalize="off">
+    <button class="navbtn" style="padding:0 14px" data-openfrom="urlSheet">開く</button>
+  </div>
+</div>
+
+<div class="sheet short" id="sheet-dict">
+  <div class="grab"></div>
+  <div class="shead"><span></span><button class="done" data-close>閉じる</button></div>
+  <div id="dictBody"></div>
+</div>
+
+<div class="sheet short" id="sheet-timing">
+  <div class="grab"></div>
+  <div class="shead"><h3>タイミング調整</h3><button class="done" data-close>完了</button></div>
+  <div class="offbox">
+    <button class="btn btn-gray" id="offEarly">◀ 歌詞を早く</button>
+    <div id="offQ">±0.0秒</div>
+    <button class="btn btn-gray" id="offLate">歌詞を遅く ▶</button>
+  </div>
+  <input type="range" id="offset" min="-30000" max="30000" step="50" value="0" style="margin-top:14px">
+  <button class="btn btn-primary" id="hereBtn" style="margin-top:12px">🎯 自動で合わせる</button>
+  <div id="alignBox" hidden>
+    <div class="dsub">① 再生したまま、この行が<b>歌われるのを待つ</b></div>
+    <div id="alignText"></div>
+    <button class="btn btn-primary" id="alTap">② 歌い始めた瞬間にタップ！</button>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn btn-gray" id="alPrev">◀ 前の行</button><button class="btn btn-gray" id="alNext">次の行 ▶</button>
+    </div>
+    <div class="dsub" style="font-size:13px">もう過ぎてしまったら「次の行」で、これから歌われる行に変えてください。</div>
+  </div>
+  <div class="sfoot" style="margin:12px 0 0">合ったら右上の ☆ で保存すると、この曲のタイミングとして記録されます。</div>
+</div>
+
+<div class="sheet" id="sheet-edit">
+  <div class="grab"></div>
+  <div class="shead"><h3>歌詞・和訳を入力</h3><button class="done" data-close>完了</button></div>
+  <div class="shdr" style="margin-left:0">歌詞（タイミング付き LRC でも、文字だけでも OK）</div>
+  <div class="list"><textarea class="field" id="lyricText" placeholder="[00:12.30]1行目の歌詞&#10;[00:16.80]2行目の歌詞"></textarea></div>
+  <div class="shdr" style="margin:14px 0 6px">和訳（歌詞と同じ行の順番で1行ずつ）</div>
+  <div class="list"><textarea class="field" id="transText" style="min-height:110px" placeholder="1行目の訳&#10;2行目の訳"></textarea></div>
+  <div class="actions" style="margin-top:12px">
+    <button class="btn btn-primary" id="applyBtn">この内容を使う</button>
+    <button class="btn btn-gray" id="fileBtn">ファイルから読み込む</button>
+  </div>
+  <input type="file" id="lrcFile" accept=".lrc,.txt,.srt" hidden>
+  <div class="shdr" style="margin:18px 0 6px">文字だけの歌詞に時刻を付ける</div>
+  <div class="dsub" style="font-size:13px">「始める」を押して曲を再生し、各行が歌い始めた瞬間に大きなボタンを押します。行をタップするとそこからやり直せます。</div>
+  <div class="actions" style="margin-top:10px"><button class="btn btn-gray" id="syncBtn">時刻付けを始める</button></div>
+  <button class="btn btn-primary" id="tapBtn" hidden style="height:64px;font-size:18px">● 今この行が始まった！</button>
+  <div id="lines"></div>
+</div>
+
 <div id="card"><div id="cardBox"></div></div>
+<div id="toast"></div>
+<div id="updBar"><span>新しい版があります</span><button id="updBtn">更新</button></div>
 
 <script>
+'use strict';
 const $ = (id) => document.getElementById(id);
-let player = null, lines = [], trans = [], offsetMs = 0, syncMode = false, syncIdx = 0, lastIdx = -2;
+const root = document.documentElement.style;
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function loadJSON(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch { return d; } }
+function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { toast('保存に失敗しました: ' + e.message); return false; } }
+
+/* ---------- トースト ---------- */
+let toastTimer;
+function toast(msg, ms = 2800) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+/* ---------- 状態 ---------- */
+let player = null, ytReady = false, pendingVid = null, ticking = false;
+let lines = [], trans = [], offsetMs = 0, lastIdx = -2, loopIdx = -1, curVid = null, autoSearchFor = null, lyricSrc = '';
+let syncMode = false, syncIdx = 0, pendingSeek = null, rate = 1;
+
+/* ---------- 設定 ---------- */
+const DEF = { ovLines: 4, size: 24, dim: 40, pos: 'middle', color: '#ffffff', tcolor: '#ffe08a', nLines: 2, autoNext: true, shuffle: false };
+const LIM = { ovLines: [1, 8], nLines: [0, 6] };
+let set = Object.assign({}, DEF, loadJSON('lo-set', {}));
+function saveSet() { saveJSON('lo-set', set); applySet(); }
+function applySet() {
+  root.setProperty('--lyric-size', set.size + 'px'); root.setProperty('--lyric-color', set.color);
+  root.setProperty('--trans-color', set.tcolor); root.setProperty('--dim', set.dim / 100);
+  ['top', 'middle', 'bottom'].forEach(p => $('overlay').classList.toggle(p, set.pos === p));
+  $('ovLinesV').textContent = set.ovLines + ' 行';
+  $('nLinesV').textContent = set.nLines ? set.nLines + ' 行' : '表示しない';
+  $('sizeR').value = set.size; $('sizeV').textContent = set.size;
+  $('dimR').value = set.dim; $('dimV').textContent = set.dim + '%';
+  document.querySelectorAll('#posSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === set.pos));
+  $('colorI').value = set.color; $('tcolorI').value = set.tcolor;
+  $('autoNext').checked = set.autoNext; $('shuffle').checked = set.shuffle;
+  lastIdx = -2; lastPageKey = null; updatePlayUI();
+}
+document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
+  const k = b.dataset.k, [lo, hi] = LIM[k];
+  set[k] = Math.max(lo, Math.min(hi, set[k] + +b.dataset.d)); saveSet();
+});
+$('sizeR').oninput = (e) => { set.size = +e.target.value; saveSet(); };
+$('dimR').oninput = (e) => { set.dim = +e.target.value; saveSet(); };
+document.querySelectorAll('#posSeg button').forEach(b => b.onclick = () => { set.pos = b.dataset.v; saveSet(); });
+$('colorI').oninput = (e) => { set.color = e.target.value; saveSet(); };
+$('tcolorI').oninput = (e) => { set.tcolor = e.target.value; saveSet(); };
+$('autoNext').onchange = (e) => { set.autoNext = e.target.checked; saveSet(); };
+$('shuffle').onchange = (e) => { set.shuffle = e.target.checked; saveSet(); };
+
+/* ---------- タブ ---------- */
+function showTab(name) {
+  document.querySelectorAll('.screen.layer').forEach(s => s.classList.toggle('active', s.dataset.tab === name));
+  document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  if (name === 'vocab') renderVocab();
+  if (name === 'list') renderPl();
+}
+document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+/* ---------- シート ---------- */
+let openSheetEl = null;
+function openSheet(id, dim = true) {
+  if (openSheetEl && openSheetEl.id !== id) closeSheet();
+  openSheetEl = $(id); openSheetEl.classList.add('open');
+  $('backdrop').classList.add('show'); $('backdrop').classList.toggle('dim', dim);
+}
+function closeSheet() {
+  if (!openSheetEl) return;
+  const s = openSheetEl; openSheetEl = null; s.classList.remove('open'); $('backdrop').classList.remove('show');
+  if (s.id === 'sheet-dict') onDictClosed();
+  if (s.id === 'sheet-timing') { alignIdx = -1; showAlign(); }
+  if (s.id === 'sheet-edit' && syncMode) toggleSync();
+}
+$('backdrop').onclick = closeSheet;
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheet);
 
 /* ---------- YouTube ---------- */
 function parseId(s) {
-  s = s.trim();
+  s = (s || '').trim();
+  const m0 = s.match(/https?:\/\/\S+/); if (m0) s = m0[0];   // 共有テキストに文章が混ざっていても URL だけ取り出す
   if (/^[\w-]{11}$/.test(s)) return s;
   try {
     const u = new URL(s);
@@ -320,56 +556,154 @@ function parseId(s) {
   } catch {}
   return null;
 }
-window.onYouTubeIframeAPIReady = () => { status('YouTube プレイヤー準備OK。URL を入れて「読み込み」'); };
-$('loadBtn').onclick = () => {
-  const id = parseId($('url').value);
-  if (!id) return status('URL から動画IDを読み取れませんでした');
-  $('qArtist').value = ''; $('qTitle').value = '';
-  loadVideo(id);
-};
-function loadVideo(id) {
-  curVid = id; loopIdx = -1; setLoopUI(); renderPl();
-  if (player && player.loadVideoById) { player.loadVideoById(id); return; }
+window.onYouTubeIframeAPIReady = () => { ytReady = true; if (pendingVid) { const v = pendingVid; pendingVid = null; createPlayer(v); } };
+function createPlayer(id) {
   player = new YT.Player('player', {
     videoId: id,
     playerVars: { rel: 0, modestbranding: 1, playsinline: 1, fs: 0 },
     events: {
-      onReady: () => { status('読み込み完了'); guessTitle(); requestAnimationFrame(tick); },
-      onStateChange: (e) => {
-        if (e.data === YT.PlayerState.PLAYING) {
-          guessTitle(); player.setPlaybackRate(+$('rate').value);
-          if (pendingSeek != null) { player.seekTo(Math.max(0, pendingSeek - 1), true); pendingSeek = null; }
-        }
-        if (e.data === YT.PlayerState.ENDED && $('autoNext').checked && loopIdx < 0) nextSong();
-      },
-      onError: (e) => status('再生エラー (' + e.data + ')：この動画は埋め込み再生が禁止されている可能性があります'),
+      onReady: () => { try { player.playVideo(); } catch {} if (!ticking) { ticking = true; requestAnimationFrame(tick); } },
+      onStateChange: onPlayerState,
+      onError: () => toast('この動画は再生できません（埋め込み再生が禁止されている可能性があります）', 4000),
     },
   });
 }
-$('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('loadBtn').click(); });
-function guessTitle() {
-  const d = player.getVideoData && player.getVideoData();
-  if (!d || !d.title || $('qTitle').value) return;
-  // "Artist - Title (Official Video)" 形式を推測
-  let t = d.title.replace(/[\(\[].*?(official|video|lyric|audio|mv|hd|4k|remaster).*?[\)\]]/gi, '').trim();
-  const m = t.split(/\s[-–—]\s/);
-  if (m.length >= 2) { $('qArtist').value = m[0].trim(); $('qTitle').value = m.slice(1).join(' - ').trim(); }
-  else { $('qTitle').value = t; $('qArtist').value = (d.author || '').replace(/VEVO$/i, '').replace(/ - Topic$/, ''); }
+function onPlayerState(e) {
+  const S = YT.PlayerState;
+  setPlayIcon(e.data === S.PLAYING || e.data === S.BUFFERING);
+  if (e.data === S.PLAYING) {
+    player.setPlaybackRate(rate);
+    if (pendingSeek != null) { player.seekTo(Math.max(0, pendingSeek - 1), true); pendingSeek = null; }
+  }
+  if (e.data === S.ENDED && set.autoNext && loopIdx < 0) nextSong();
 }
-$('fsBtn').onclick = () => {
-  const st = $('stage');
-  if (document.fullscreenElement) return document.exitFullscreen();
-  if (st.requestFullscreen) {
-    st.requestFullscreen().then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => st.classList.add('pseudo-fs'));
-  } else st.classList.add('pseudo-fs');
-};
-$('exitFs').onclick = () => $('stage').classList.remove('pseudo-fs');
+function setPlayIcon(playing) {
+  $('playIcon').innerHTML = playing ? '<rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/>' : '<path d="M8 5.5v13l10.5-6.5z"/>';
+}
+function loadVideo(id, fromPlaylist) {
+  curVid = id; loopIdx = -1; setLoopUI();
+  if (!fromPlaylist) {
+    $('qArtist').value = ''; $('qTitle').value = ''; $('lyricText').value = ''; $('transText').value = '';
+    setOffset(0); applyLyrics(true); lyricSrc = ''; autoSearchFor = id;
+    $('results').hidden = true; $('resultsHdr').hidden = true;
+  }
+  updatePlayUI(); renderPl();
+  if (player && player.loadVideoById) { player.loadVideoById(id); return; }
+  if (ytReady) createPlayer(id); else pendingVid = id;
+}
+function openFromText(text) {
+  const id = parseId(text);
+  if (!id) return toast('YouTube の URL が見つかりませんでした');
+  closeSheet(); showTab('play'); loadVideo(id, false);
+}
+document.querySelectorAll('[data-paste]').forEach(b => b.onclick = async () => {
+  try { openFromText(await navigator.clipboard.readText()); }
+  catch { toast('貼り付けできませんでした。下の欄に URL を入力してください'); }
+});
+document.querySelectorAll('[data-openfrom]').forEach(b => b.onclick = () => openFromText($(b.dataset.openfrom).value));
+['urlInline', 'urlSheet'].forEach(id => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') openFromText(e.target.value); }));
+$('openBtn').onclick = () => openSheet('sheet-open');
 
-/* ---------- 歌詞パース ---------- */
+function guessTitle(d) {
+  if ($('qTitle').value) return;
+  let t = d.title.replace(/[\(\[【「].*?[\)\]】」]/g, ' ').replace(/["“”]/g, '').replace(/\s+/g, ' ').trim();
+  t = t.replace(/\b(official\s*(music\s*)?video|lyric\s*video|official\s*audio|music\s*video)\b/gi, '').trim();
+  const m = t.split(/\s[-–—|]\s/);
+  if (m.length >= 2) { $('qArtist').value = m[0].trim(); $('qTitle').value = m.slice(1).join(' ').replace(/\s(ft|feat)\..*$/i, '').trim(); }
+  else { $('qTitle').value = t; $('qArtist').value = (d.author || '').replace(/VEVO$/i, '').replace(/\s*-\s*Topic$/, '').trim(); }
+}
+function songName() {
+  const a = $('qArtist').value.trim(), t = $('qTitle').value.trim();
+  const d = (player && player.getVideoData && player.getVideoData()) || {};
+  return a && t ? `${a} — ${t}` : (t || d.title || '');
+}
+function updatePlayUI() {
+  const has = !!curVid;
+  $('stage').hidden = !has; $('empty').hidden = has; $('controls').hidden = !has; $('lyricChip').hidden = !has;
+  $('nowCard').hidden = !has || set.nLines === 0;
+  $('songTitle').textContent = has ? (songName() || 'Lyric') : 'Lyric';
+  const saved = has && playlist.some(p => p.vid === curVid);
+  $('favIcon').style.fill = saved ? 'currentColor' : 'none';
+  $('lyricChipText').textContent = lines.length ? '♪ 歌詞：' + (lyricSrc || '手入力') : '♪ 歌詞が見つかっていません';
+}
+$('lyricChip').onclick = () => showTab('search');
+
+/* ---------- 再生コントロール ---------- */
+let lastYt = -1, lastWall = 0;
+function nowSec() {
+  // getCurrentTime() は数百ms〜1秒ごとにしか更新されないので、再生中は経過時間で補間する
+  if (!player || !player.getCurrentTime) return 0;
+  const yt = player.getCurrentTime() || 0, w = performance.now();
+  const playing = player.getPlayerState && player.getPlayerState() === 1;
+  if (yt !== lastYt || !playing) { lastYt = yt; lastWall = w; return yt; }
+  return yt + Math.min(1.5, (w - lastWall) / 1000) * rate;
+}
+function lineStart(i) { return lines[i].t + offsetMs / 1000; }
+function nextTimed(i) { for (let j = i + 1; j < lines.length; j++) if (lines[j].t !== null) return j; return -1; }
+function currentIndex(t) {
+  let idx = -1;
+  for (let i = 0; i < lines.length; i++) { if (lines[i].t !== null && lines[i].t <= t) idx = i; else if (lines[i].t !== null) break; }
+  return idx;
+}
+$('playBtn').onclick = () => { if (!player || !player.getPlayerState) return; player.getPlayerState() === 1 ? player.pauseVideo() : player.playVideo(); };
+$('againBtn').onclick = () => { const i = loopIdx >= 0 ? loopIdx : currentIndex(nowSec() - offsetMs / 1000); if (i >= 0) player.seekTo(lineStart(i), true); };
+$('prevBtn').onclick = () => {
+  let i = currentIndex(nowSec() - offsetMs / 1000) - 1;
+  while (i >= 0 && lines[i].t === null) i--;
+  if (i >= 0) { if (loopIdx >= 0) loopIdx = i; player.seekTo(lineStart(i), true); }
+};
+$('loopBtn').onclick = () => {
+  if (loopIdx >= 0) { loopIdx = -1; setLoopUI(); return toast('くり返しを止めました'); }
+  const i = currentIndex(nowSec() - offsetMs / 1000);
+  if (i < 0) return toast('歌詞が出ているときに押してください');
+  loopIdx = i; setLoopUI(); toast('今の行をくり返します');
+};
+function setLoopUI() { $('loopBtn').classList.toggle('on', loopIdx >= 0); }
+const RATES = [1, 0.75, 0.5, 1.25];
+$('rateBtn').onclick = () => {
+  rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length];
+  $('rateV').textContent = rate + '×'; $('rateBtn').classList.toggle('on', rate !== 1);
+  if (player && player.setPlaybackRate) player.setPlaybackRate(rate);
+  toast(`再生速度 ${rate}×`);
+};
+$('timingBtn').onclick = () => openSheet('sheet-timing', false);
+$('fsBtn').onclick = () => {
+  const st = $('stage'), iOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (st.requestFullscreen && !iOS) st.requestFullscreen().then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch {} }).catch(() => pseudoFs(true));
+  else pseudoFs(true);
+};
+function pseudoFs(on) { document.body.classList.toggle('fs', on); setTimeout(fitOverlay, 60); if (on) toast('横向きにすると大きく見られます'); }
+$('exitFs').onclick = () => pseudoFs(false);
+document.addEventListener('fullscreenchange', () => setTimeout(fitOverlay, 100));
+window.addEventListener('resize', () => setTimeout(fitOverlay, 60));
+
+/* ---------- メインループ ---------- */
+function tick() {
+  try {
+    // 新しく開いた動画のタイトルが分かったら、歌詞を自動でさがす
+    if (autoSearchFor && player && player.getVideoData) {
+      const d = player.getVideoData();
+      if (d && d.video_id === autoSearchFor && d.title) { autoSearchFor = null; guessTitle(d); updatePlayUI(); runSearch(true); }
+    }
+    const t = nowSec() - offsetMs / 1000;
+    if (loopIdx >= 0 && lines[loopIdx]) {
+      const nj = nextTimed(loopIdx), end = nj >= 0 ? lines[nj].t : lines[loopIdx].t + 6;
+      if (t >= end - 0.05 || t < lines[loopIdx].t - 1) player.seekTo(lineStart(loopIdx), true);
+    }
+    const idx = currentIndex(t);
+    if (idx !== lastIdx) {
+      lastIdx = idx; renderOverlay(idx); renderNow(idx);
+      document.querySelectorAll('#lines div').forEach((el, i) => el.classList.toggle('on', i === idx));
+      const on = document.querySelector('#lines div.on'); if (on && !syncMode) scrollListTo(on);
+    }
+  } catch (e) { /* 一時的なエラーで止まらないように */ }
+  requestAnimationFrame(tick);
+}
+
+/* ---------- 歌詞 ---------- */
 function parseLyrics(text) {
   const out = []; let fileOffset = 0;
-  const srt = /^\d+\s*\n\d{2}:\d{2}:\d{2}[,.]\d{3}\s*-->/m.test(text);
-  if (srt) {
+  if (/^\d+\s*\n\d{2}:\d{2}:\d{2}[,.]\d{3}\s*-->/m.test(text)) {
     for (const b of text.split(/\r?\n\r?\n/)) {
       const m = b.match(/(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->.*\r?\n([\s\S]*)/);
       if (m) out.push({ t: (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) + (+m[4]) / 1000, text: m[5].replace(/\r?\n/g, ' ').trim() });
@@ -383,252 +717,100 @@ function parseLyrics(text) {
     const stamps = [...raw.matchAll(/\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g)];
     const body = raw.replace(/\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]/g, '').replace(/<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>/g, '').trim();
     if (stamps.length) {
-      for (const s of stamps) {
-        const frac = s[3] ? +s[3] / Math.pow(10, s[3].length) : 0;
-        out.push({ t: (+s[1]) * 60 + (+s[2]) + frac - fileOffset, text: body });
-      }
+      for (const s of stamps) { const frac = s[3] ? +s[3] / Math.pow(10, s[3].length) : 0; out.push({ t: (+s[1]) * 60 + (+s[2]) + frac - fileOffset, text: body }); }
     } else if (body) out.push({ t: null, text: body });
   }
   if (out.every(l => l.t !== null)) out.sort((a, b) => a.t - b.t);
   return out;
 }
-function applyLyrics() {
+function applyLyrics(silent) {
   lines = parseLyrics($('lyricText').value);
   trans = $('transText').value.split(/\r?\n/).filter(s => s.trim() !== '');
-  const timed = lines.filter(l => l.t !== null).length;
-  status(`${lines.length} 行を読み込み（時刻あり ${timed} 行）` + (timed < lines.length ? '：時刻なしの行は「タップ同期」で設定してください' : ''));
-  lastIdx = -2; renderLines();
+  lastIdx = -2; lastPageKey = null; renderLines(); updatePlayUI();
+  if (!silent) {
+    const timed = lines.filter(l => l.t !== null).length;
+    toast(`${lines.length} 行を読み込みました` + (timed < lines.length ? '（時刻なしの行があります）' : ''));
+  }
 }
-$('applyBtn').onclick = applyLyrics;
-$('transText').addEventListener('change', applyLyrics);
-$('lrcFile').onchange = async (e) => { const f = e.target.files[0]; if (f) { $('lyricText').value = await f.text(); applyLyrics(); } };
+$('editOpen').onclick = () => openSheet('sheet-edit');
+$('applyBtn').onclick = () => { lyricSrc = lyricSrc || '手入力'; applyLyrics(); closeSheet(); showTab('play'); };
+$('fileBtn').onclick = () => $('lrcFile').click();
+$('lrcFile').onchange = async (e) => { const f = e.target.files[0]; if (f) { $('lyricText').value = await f.text(); lyricSrc = f.name; applyLyrics(); } e.target.value = ''; };
 
-/* ---------- LRCLIB ---------- */
-$('searchBtn').onclick = async () => {
+/* ---------- 歌詞検索（LRCLIB） ---------- */
+async function runSearch(auto) {
   const q = new URLSearchParams();
-  if ($('qTitle').value) q.set('track_name', $('qTitle').value);
-  if ($('qArtist').value) q.set('artist_name', $('qArtist').value);
-  if (![...q.keys()].length) return status('曲名かアーティストを入れてください');
-  $('results').textContent = '検索中…';
+  if ($('qTitle').value.trim()) q.set('track_name', $('qTitle').value.trim());
+  if ($('qArtist').value.trim()) q.set('artist_name', $('qArtist').value.trim());
+  if (![...q.keys()].length) { if (!auto) toast('曲名かアーティスト名を入れてください'); return; }
+  const box = $('results'); box.hidden = false; $('resultsHdr').hidden = false;
+  box.innerHTML = '<div class="cell muted">検索中…</div>';
+  if (auto) toast('歌詞をさがしています…', 1500);
+  let list = [];
   try {
-    const r = await fetch('https://lrclib.net/api/search?' + q);
-    const list = await r.json();
-    $('results').textContent = list.length ? '' : '見つかりませんでした（曲名だけで再検索してみてください）';
-    // 動画の長さに近い（＝同じバージョンの可能性が高い）同期歌詞を上に並べる
-    const vd = player && player.getDuration ? player.getDuration() : 0;
-    const score = (it) => (it.syncedLyrics ? 0 : 10000) + (vd && it.duration ? Math.abs(it.duration - vd) : 5000);
-    list.sort((a, b) => score(a) - score(b));
-    list.slice(0, 12).forEach(it => {
-      const d = document.createElement('div');
-      const dur = it.duration ? ` ${Math.floor(it.duration / 60)}:${String(Math.round(it.duration % 60)).padStart(2, '0')}` : '';
-      let diff = '';
-      if (vd && it.duration) {
-        const s = Math.round(vd - it.duration);
-        diff = Math.abs(s) <= 3 ? '  ✅長さ一致' : `  （動画のほうが${s > 0 ? s + '秒長い' : -s + '秒短い'}）`;
-      }
-      d.textContent = `${it.syncedLyrics ? '⏱' : '📝'} ${it.artistName} — ${it.trackName}${dur}${diff}`;
-      d.title = it.syncedLyrics ? '同期歌詞あり' : 'テキストのみ（タップ同期が必要）';
-      d.onclick = () => { $('lyricText').value = it.syncedLyrics || it.plainLyrics || ''; applyLyrics(); };
-      $('results').appendChild(d);
-    });
-  } catch (err) { $('results').textContent = '検索に失敗: ' + err.message; }
-};
+    list = await (await fetch('https://lrclib.net/api/search?' + q)).json();
+    if (!list.length && q.has('artist_name')) {   // アーティスト名の推測が外れていることがあるので曲名だけで再検索
+      q.delete('artist_name'); list = await (await fetch('https://lrclib.net/api/search?' + q)).json();
+    }
+  } catch (err) { box.innerHTML = '<div class="cell muted">検索に失敗しました</div>'; return; }
+  const vd = player && player.getDuration ? player.getDuration() : 0;
+  const score = (it) => (it.syncedLyrics ? 0 : 10000) + (vd && it.duration ? Math.abs(it.duration - vd) : 5000);
+  list.sort((a, b) => score(a) - score(b));
+  box.textContent = '';
+  if (!list.length) box.innerHTML = '<div class="cell muted">見つかりませんでした。曲名だけで検索してみてください</div>';
+  list.slice(0, 15).forEach(it => {
+    const c = document.createElement('button'); c.className = 'cell';
+    const dur = it.duration ? `${Math.floor(it.duration / 60)}:${String(Math.round(it.duration % 60)).padStart(2, '0')}` : '';
+    const match = vd && it.duration && Math.abs(vd - it.duration) <= 3;
+    c.innerHTML = `<div class="cmain"><div class="ctitle"></div><div class="csub"></div></div>` +
+      (match ? '<span class="badge green">長さ一致</span>' : '') +
+      (it.syncedLyrics ? '<span class="badge blue">同期</span>' : '<span class="badge">文字のみ</span>');
+    c.querySelector('.ctitle').textContent = it.trackName; c.querySelector('.csub').textContent = `${it.artistName}${dur ? ' · ' + dur : ''}`;
+    c.onclick = () => useResult(it, false);
+    box.appendChild(c);
+  });
+  if (auto) {
+    const best = list.find(x => x.syncedLyrics);
+    if (best) { useResult(best, true); toast('歌詞を見つけました：' + best.trackName); }
+    else toast('タイミング付きの歌詞が見つかりませんでした。「さがす」で選んでください', 4000);
+  }
+}
+function useResult(it, auto) {
+  $('lyricText').value = it.syncedLyrics || it.plainLyrics || ''; $('transText').value = '';
+  lyricSrc = `${it.artistName} — ${it.trackName}`; setOffset(0); applyLyrics(true);
+  if (auto) return;
+  showTab('play');
+  toast(it.syncedLyrics ? '歌詞をセットしました' : '文字だけの歌詞です。「自分で入力」から時刻を付けられます', 3500);
+}
+$('searchBtn').onclick = () => runSearch(false);
+['qArtist', 'qTitle'].forEach(id => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') runSearch(false); }));
 
-/* ---------- 再生同期 ---------- */
-// YouTube の getCurrentTime() は数百ms〜1秒ごとにしか更新されない（特にスマホ）ため、
-// 再生中は前回の更新からの経過時間で補間して、歌詞の切り替えを滑らかで正確にする
-let lastYt = -1, lastWall = 0;
-function nowSec() {
-  if (!player || !player.getCurrentTime) return 0;
-  const yt = player.getCurrentTime() || 0, w = performance.now();
-  const playing = player.getPlayerState && player.getPlayerState() === 1;
-  if (yt !== lastYt || !playing) { lastYt = yt; lastWall = w; return yt; }
-  const rate = (player.getPlaybackRate && player.getPlaybackRate()) || 1;
-  return yt + Math.min(1.5, (w - lastWall) / 1000) * rate;
-}
-function setOffset(ms) {
-  offsetMs = Math.round(ms / 10) * 10;
-  $('offset').value = Math.max(-30000, Math.min(30000, offsetMs));
-  const txt = (offsetMs > 0 ? '+' : offsetMs < 0 ? '' : '±') + (offsetMs / 1000).toFixed(1) + '秒';
-  $('offsetV').textContent = (offsetMs > 0 ? '+' : '') + offsetMs + ' ms'; $('offQ').textContent = txt;
-  lastIdx = -2;
-}
-function currentIndex(t) {
-  let idx = -1;
-  for (let i = 0; i < lines.length; i++) { if (lines[i].t !== null && lines[i].t <= t) idx = i; else if (lines[i].t !== null) break; }
-  return idx;
-}
-let loopIdx = -1;
-function lineStart(i) { return lines[i].t + offsetMs / 1000; }
-function nextTimed(i) { for (let j = i + 1; j < lines.length; j++) if (lines[j].t !== null) return j; return -1; }
-function tick() {
-  const t = nowSec() - offsetMs / 1000;
-  if (loopIdx >= 0) {
-    const nj = nextTimed(loopIdx);
-    const end = nj >= 0 ? lines[nj].t : lines[loopIdx].t + 6;
-    if (t >= end - 0.05 || t < lines[loopIdx].t - 1) player.seekTo(lineStart(loopIdx), true);
-  }
-  const idx = currentIndex(t);
-  if (idx !== lastIdx) {
-    lastIdx = idx;
-    renderOverlay(idx);
-    renderNow(idx);
-    document.querySelectorAll('#lines div').forEach((el, i) => el.classList.toggle('on', i === idx));
-    const on = document.querySelector('#lines div.on'); if (on && !syncMode) scrollListTo(on);
-  }
-  requestAnimationFrame(tick);
-}
-function fmt(t) { if (t === null) return '--:--.--'; const m = Math.floor(t / 60), s = t - m * 60; return `${String(m).padStart(2, '0')}:${s.toFixed(2).padStart(5, '0')}`; }
-function renderLines() {
-  const box = $('lines'); box.innerHTML = '';
-  lines.forEach((l, i) => {
-    const d = document.createElement('div'); if (l.t === null) d.className = 'notime';
-    d.innerHTML = `<span class="t">${fmt(l.t)}</span><span></span>`; wordsInto(d.lastChild, l.text, i);
-    d.onclick = () => { if (syncMode) { syncIdx = i; markSync(); } else if (l.t !== null && player) player.seekTo(l.t + offsetMs / 1000, true); };
+/* ---------- 映像の上の歌詞（n 行ずつまとめて切り替え） ---------- */
+let lastPageKey = null;
+function sungLines() { const s = []; lines.forEach((l, i) => { if (l.t !== null && l.text) s.push(i); }); return s; }
+function renderOverlay(idx) {
+  const n = set.ovLines, sung = sungLines();
+  let k = -1; sung.forEach((li, p) => { if (li <= idx) k = p; });
+  const page = Math.max(0, Math.floor(k / n)), show = sung.slice(page * n, page * n + n);
+  const key = n + '\n' + show.map(li => lines[li].text + '\t' + (trans[li] || '')).join('\n');
+  if (key === lastPageKey) return;      // 同じページなら描き直さない（ちらつき防止）
+  lastPageKey = key;
+  const box = $('overlay'); box.textContent = '';
+  show.forEach(li => {
+    const d = document.createElement('div'); d.className = 'ol'; d.textContent = lines[li].text;
+    if (trans[li]) { const tr = document.createElement('div'); tr.className = 'otr'; tr.textContent = trans[li]; d.appendChild(tr); }
     box.appendChild(d);
   });
+  fitOverlay();
+}
+function fitOverlay() {
+  // 長い行が折り返して映像に入りきらない時は、全行が収まるまで文字を縮める
+  const box = $('overlay'), st = $('stage'); if (!st.clientHeight) return;
+  const max = st.clientHeight * 0.94; let f = 1; box.style.setProperty('--fit', 1);
+  while (box.scrollHeight > max && f > 0.35) { f -= 0.05; box.style.setProperty('--fit', f.toFixed(2)); }
 }
 
-/* ---------- タップ同期 ---------- */
-function markSync() { document.querySelectorAll('#lines div').forEach((el, i) => el.style.outline = syncMode && i === syncIdx ? '1px solid #4f8cff' : ''); }
-$('syncBtn').onclick = () => {
-  syncMode = !syncMode;
-  $('syncBtn').textContent = syncMode ? '■ 時刻付けを終わる' : '⏱ 時刻付けを始める';
-  $('syncBtn').className = syncMode ? 'rec' : '';
-  $('tapBtn').classList.toggle('show', syncMode);
-  if (syncMode) { syncIdx = Math.max(0, lines.findIndex(l => l.t === null)); status('同期モード：曲を再生し、各行が歌い始めた瞬間に Space'); }
-  markSync();
-};
-document.addEventListener('keydown', (e) => {
-  if (!syncMode || ['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) return;
-  if (e.code === 'Space') { e.preventDefault(); stamp(); }
-  else if (e.code === 'Backspace') {
-    e.preventDefault(); if (syncIdx > 0) { syncIdx--; lines[syncIdx].t = null; renderLines(); markSync(); writeBackLrc(); }
-  }
-});
-function stamp() {
-  if (syncIdx >= lines.length) return;
-  lines[syncIdx].t = Math.max(0, nowSec() - offsetMs / 1000 - 0.15); // 反応遅れを少し補正
-  syncIdx++; lastIdx = -2; renderLines(); markSync(); writeBackLrc();
-  const el = $('lines').children[syncIdx]; if (el) scrollListTo(el);
-}
-// ページ全体は動かさず、歌詞一覧の枠の中だけをスクロールする
-function scrollListTo(el) {
-  const box = $('lines');
-  box.scrollTop = el.offsetTop - box.offsetTop - box.clientHeight / 2 + el.clientHeight / 2;
-}
-$('tapBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); stamp(); });
-function writeBackLrc() { $('lyricText').value = toLrc(); }
-
-/* ---------- 書き出し ---------- */
-function timed() { return lines.filter(l => l.t !== null).map((l, i) => ({ ...l, tr: trans[lines.indexOf(l)] || '' })); }
-function endOf(arr, i) { return arr[i + 1] ? arr[i + 1].t : arr[i].t + 5; }
-function toLrc() { return lines.map(l => (l.t === null ? '' : `[${fmt(l.t)}]`) + l.text).join('\n'); }
-function srtTime(t) { const ms = Math.round(t * 1000), h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60; return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms % 1000).padStart(3, '0')}`; }
-function assTime(t) { const cs = Math.round(t * 100), h = Math.floor(cs / 360000), m = Math.floor(cs / 6000) % 60, s = Math.floor(cs / 100) % 60; return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`; }
-function assColor(hex) { const h = hex.replace('#', ''); return `&H00${h.slice(4, 6)}${h.slice(2, 4)}${h.slice(0, 2)}`.toUpperCase(); }
-function toSrt() { const a = timed(); return a.map((l, i) => `${i + 1}\n${srtTime(l.t)} --> ${srtTime(endOf(a, i))}\n${l.text}${l.tr ? '\n' + l.tr : ''}\n`).join('\n'); }
-function toAss() {
-  const a = timed(), size = Math.round(+$('size').value * 1.5), top = $('pos').value === 'top';
-  const marginV = Math.round(1080 * +$('posv').value / 100), align = top ? 8 : $('pos').value === 'middle' ? 5 : 2;
-  const esc = (s) => s.replace(/[{}]/g, '').replace(/\n/g, '\\N');
-  let s = `[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\n` +
-    `Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n` +
-    `Style: Lyric,Arial,${size},${assColor($('color').value)},&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,${align},80,80,${marginV},1\n` +
-    `Style: Trans,Yu Gothic UI,${Math.round(size * .6)},${assColor($('tcolor').value)},&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,2,${align},80,80,${marginV},1\n\n` +
-    `[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
-  const off = offsetMs / 1000;
-  a.forEach((l, i) => {
-    if (!l.text) return;
-    const st = assTime(Math.max(0, l.t + off)), en = assTime(Math.max(0, endOf(a, i) + off));
-    const tr = l.tr ? `\\N{\\rTrans}${esc(l.tr)}` : '';
-    s += `Dialogue: 0,${st},${en},Lyric,,0,0,0,,{\\fad(150,150)}${esc(l.text)}${tr}\n`;
-  });
-  return s;
-}
-document.querySelectorAll('[data-exp]').forEach(b => b.onclick = () => {
-  if (!timed().length) return status('時刻付きの行がありません');
-  const kind = b.dataset.exp, body = kind === 'lrc' ? toLrc() : kind === 'srt' ? toSrt() : toAss();
-  const name = (($('qArtist').value + ' - ' + $('qTitle').value).replace(/^ - | - $/g, '') || 'lyrics').replace(/[\\/:*?"<>|]/g, '_');
-  const blob = new Blob(['﻿' + body], { type: 'text/plain;charset=utf-8' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${name}.${kind}`; a.click();
-});
-
-/* ---------- スタイル ---------- */
-const root = document.documentElement.style;
-$('size').oninput = (e) => root.setProperty('--lyric-size', e.target.value + 'px');
-$('posv').oninput = (e) => root.setProperty('--lyric-pos', e.target.value + '%');
-function applyPos() {
-  const v = $('pos').value;
-  $('overlay').classList.toggle('top', v === 'top'); $('overlay').classList.toggle('middle', v === 'middle');
-  $('posv').disabled = v === 'middle';
-}
-$('pos').onchange = () => { applyPos(); saveJSON('lo-pos', $('pos').value); };
-$('color').oninput = (e) => root.setProperty('--lyric-color', e.target.value);
-$('tcolor').oninput = (e) => root.setProperty('--trans-color', e.target.value);
-$('ovLines').onchange = () => { saveJSON('lo-ovlines', +$('ovLines').value); lastIdx = -2; };
-$('dim').oninput = (e) => { root.setProperty('--dim', e.target.value / 100); $('dimV').textContent = e.target.value + '%'; saveJSON('lo-dim', +e.target.value); };
-$('offset').oninput = (e) => setOffset(+e.target.value);
-$('offEarly').onclick = () => setOffset(offsetMs - 500);
-$('offLate').onclick = () => setOffset(offsetMs + 500);
-// ズレ合わせ：①これから歌われる行を表示 → ②その行が聞こえた瞬間にタップ → その差をズレとして設定
-let alignIdx = -1;
-function prevTimed(i) { for (let j = i - 1; j >= 0; j--) if (lines[j].t !== null && lines[j].text) return j; return -1; }
-function nextSung(i) { for (let j = i + 1; j < lines.length; j++) if (lines[j].t !== null && lines[j].text) return j; return -1; }
-function showAlign() {
-  $('alignBox').style.display = alignIdx >= 0 ? 'block' : 'none';
-  if (alignIdx >= 0) $('alignText').textContent = '「' + lines[alignIdx].text + '」';
-}
-$('hereBtn').onclick = () => {
-  if (alignIdx >= 0) { alignIdx = -1; return showAlign(); }
-  if (!lines.some(l => l.t !== null)) return status('先に時刻付きの歌詞を読み込んでください');
-  const i = currentIndex(nowSec() - offsetMs / 1000);
-  alignIdx = nextSung(i); if (alignIdx < 0) alignIdx = prevTimed(lines.length);
-  if (player && player.getPlayerState && player.getPlayerState() !== 1) player.playVideo();
-  showAlign();
-};
-$('alNext').onclick = () => { const j = nextSung(alignIdx); if (j >= 0) { alignIdx = j; showAlign(); } };
-$('alPrev').onclick = () => { const j = prevTimed(alignIdx); if (j >= 0) { alignIdx = j; showAlign(); } };
-$('alCancel').onclick = () => { alignIdx = -1; showAlign(); };
-$('alTap').addEventListener('pointerdown', (e) => {
-  e.preventDefault(); if (alignIdx < 0) return;
-  setOffset((nowSec() - 0.15 - lines[alignIdx].t) * 1000); // 0.15秒 = タップの反応遅れ補正
-  alignIdx = -1; showAlign();
-  status(`✅ ズレを ${(offsetMs / 1000).toFixed(1)} 秒に合わせました。合っていたら「★ 保存」でこの曲に記録できます`);
-});
-function status(s) { $('status').textContent = s; }
-
-/* ---------- 学習用コントロール ---------- */
-$('loopBtn').onclick = () => {
-  if (loopIdx >= 0) { loopIdx = -1; setLoopUI(); return; }
-  const i = currentIndex(nowSec() - offsetMs / 1000);
-  if (i < 0) return status('歌詞の行が表示されている時に押してください');
-  loopIdx = i; setLoopUI();
-};
-function setLoopUI() {
-  $('loopBtn').className = loopIdx >= 0 ? 'rec' : '';
-  $('loopBtn').textContent = loopIdx >= 0 ? '🔁 くり返し中（タップで止める）' : '🔁 今の行をくり返す';
-}
-// 再生の速さ（ボタン式）
-document.querySelectorAll('#rateSeg button').forEach(b => b.onclick = () => {
-  $('rate').value = b.dataset.rate;
-  document.querySelectorAll('#rateSeg button').forEach(x => x.classList.toggle('on', x === b));
-  if (player && player.setPlaybackRate) player.setPlaybackRate(+b.dataset.rate);
-});
-$('againBtn').onclick = () => { const i = loopIdx >= 0 ? loopIdx : currentIndex(nowSec() - offsetMs / 1000); if (i >= 0) player.seekTo(lineStart(i), true); };
-$('prevBtn').onclick = () => {
-  let i = currentIndex(nowSec() - offsetMs / 1000) - 1;
-  while (i >= 0 && lines[i].t === null) i--;
-  if (i >= 0) { if (loopIdx >= 0) loopIdx = i; player.seekTo(lineStart(i), true); }
-};
-$('rate').onchange = (e) => player && player.setPlaybackRate(+e.target.value);
-
-/* ---------- 保存ヘルパー（この端末のブラウザ内） ---------- */
-function loadJSON(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch { return d; } }
-function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { status('保存に失敗しました: ' + e.message); return false; } }
-const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-/* ---------- 単語タップ辞書 ---------- */
+/* ---------- 動画の下の歌詞（単語タップ用） ---------- */
 function wordsInto(container, text, lineIdx) {
   container.textContent = '';
   text.split(/(\s+)/).forEach(tok => {
@@ -639,67 +821,97 @@ function wordsInto(container, text, lineIdx) {
     container.appendChild(s);
   });
 }
-// 動画の下に「前の行・今の行・次の行…」を指定行数ぶん表示（今の行は太字＋和訳）
-// 今の行を中心に n 行ぶんの行番号を返す（3行以上なら前の行を1つ含める）
-function windowLines(idx, n) {
-  const sung = []; lines.forEach((l, i) => { if (l.t !== null && l.text) sung.push(i); });
-  if (!sung.length) return [];
+function renderNow(idx) {
+  const box = $('nowText'), n = set.nLines; if (!n) return;
+  const sung = sungLines();
+  if (!sung.length) { box.innerHTML = '<div class="placeholder">歌詞が出たら、ここの単語をタップして意味を調べられます</div>'; return; }
   let k = -1; sung.forEach((li, p) => { if (li <= idx) k = p; });
   let start = k < 0 ? 0 : (n >= 3 ? k - 1 : k);
   start = Math.max(0, Math.min(start, sung.length - n));
-  return sung.slice(start, start + n);
-}
-// 映像の上に複数行を表示（今の行は明るく＋和訳）
-// 映像の上は「n 行ずつのページ」で表示し、ページの最初の行が歌われ始めたら次のページへまとめて切り替える
-let lastPageKey = null;
-function renderOverlay(idx) {
-  const n = +$('ovLines').value;
-  const sung = []; lines.forEach((l, i) => { if (l.t !== null && l.text) sung.push(i); });
-  let k = -1; sung.forEach((li, p) => { if (li <= idx) k = p; });
-  const page = Math.max(0, Math.floor(k / n));
-  const show = sung.slice(page * n, page * n + n);
-  const key = n + '\n' + show.map(li => lines[li].text + '\t' + (trans[li] || '')).join('\n');
-  if (key === lastPageKey) return;   // 同じページなら描き直さない（ちらつき防止）
-  lastPageKey = key;
-  const box = $('overlay'); box.textContent = '';
-  show.forEach(li => {
-    const d = document.createElement('div'); d.className = 'ol';
-    d.textContent = lines[li].text;
-    if (trans[li]) { const tr = document.createElement('div'); tr.className = 'otr'; tr.textContent = trans[li]; d.appendChild(tr); }
-    box.appendChild(d);
-  });
-  fitOverlay();
-}
-// 長い行が折り返して映像に入りきらない時は、全行が収まるまで文字を自動で縮める
-function fitOverlay() {
-  const box = $('overlay'), st = $('stage'), max = st.clientHeight * 0.94;
-  let f = 1; box.style.setProperty('--fit', 1);
-  while (box.scrollHeight > max && f > 0.35) { f -= 0.05; box.style.setProperty('--fit', f.toFixed(2)); }
-}
-window.addEventListener('resize', fitOverlay);
-document.addEventListener('fullscreenchange', () => setTimeout(fitOverlay, 100));
-function renderNow(idx) {
-  const box = $('nowText'), n = +$('nLines').value;
-  const win = windowLines(idx, n);
-  if (!win.length) { box.innerHTML = '<span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span>'; return; }
   box.textContent = '';
-  win.forEach(li => {
+  sung.slice(start, start + n).forEach(li => {
     const row = document.createElement('div'); row.className = 'ln' + (li === idx ? ' cur' : '');
     const txt = document.createElement('span'); wordsInto(txt, lines[li].text, li); row.appendChild(txt);
     if (li === idx && trans[li]) { const tr = document.createElement('div'); tr.className = 'tr'; tr.textContent = trans[li]; row.appendChild(tr); }
     box.appendChild(row);
   });
 }
-$('nLines').value = loadJSON('lo-nlines', 2);
-$('ovLines').value = loadJSON('lo-ovlines', 4);
-$('pos').value = loadJSON('lo-pos', 'middle'); applyPos();
-$('dim').value = loadJSON('lo-dim', 40); root.setProperty('--dim', $('dim').value / 100); $('dimV').textContent = $('dim').value + '%';
-$('nLines').onchange = () => { saveJSON('lo-nlines', +$('nLines').value); lastIdx = -2; };
-function cleanWord(w) {
-  return w.toLowerCase().replace(/[’‘`]/g, "'").replace(/^[^a-z']+|[^a-z']+$/g, '').replace(/^'+/, '');
+
+/* ---------- タイミング調整 ---------- */
+function setOffset(ms) {
+  offsetMs = Math.round(ms / 10) * 10;
+  $('offset').value = Math.max(-30000, Math.min(30000, offsetMs));
+  $('offQ').textContent = (offsetMs > 0 ? '+' : offsetMs < 0 ? '' : '±') + (offsetMs / 1000).toFixed(1) + '秒';
+  lastIdx = -2;
 }
-// 活用形・歌詞特有の省略形から辞書の見出し語の候補を作る（running → run など）
+$('offset').oninput = (e) => setOffset(+e.target.value);
+$('offEarly').onclick = () => setOffset(offsetMs - 500);
+$('offLate').onclick = () => setOffset(offsetMs + 500);
+let alignIdx = -1;
+function prevSung(i) { for (let j = i - 1; j >= 0; j--) if (lines[j].t !== null && lines[j].text) return j; return -1; }
+function nextSung(i) { for (let j = i + 1; j < lines.length; j++) if (lines[j].t !== null && lines[j].text) return j; return -1; }
+function showAlign() {
+  $('alignBox').hidden = alignIdx < 0; $('hereBtn').hidden = alignIdx >= 0;
+  if (alignIdx >= 0) $('alignText').textContent = '「' + lines[alignIdx].text + '」';
+}
+$('hereBtn').onclick = () => {
+  if (!lines.some(l => l.t !== null)) return toast('先にタイミング付きの歌詞をセットしてください');
+  alignIdx = nextSung(currentIndex(nowSec() - offsetMs / 1000)); if (alignIdx < 0) alignIdx = prevSung(lines.length);
+  if (player && player.getPlayerState && player.getPlayerState() !== 1) player.playVideo();
+  showAlign();
+};
+$('alNext').onclick = () => { const j = nextSung(alignIdx); if (j >= 0) { alignIdx = j; showAlign(); } };
+$('alPrev').onclick = () => { const j = prevSung(alignIdx); if (j >= 0) { alignIdx = j; showAlign(); } };
+$('alTap').addEventListener('pointerdown', (e) => {
+  e.preventDefault(); if (alignIdx < 0) return;
+  setOffset((nowSec() - 0.15 - lines[alignIdx].t) * 1000);   // 0.15秒 = タップの反応遅れ補正
+  alignIdx = -1; showAlign(); toast(`✓ タイミングを ${(offsetMs / 1000).toFixed(1)} 秒に合わせました`);
+});
+
+/* ---------- 時刻付け（タップ同期） ---------- */
+function fmt(t) { if (t === null) return '--:--.--'; const m = Math.floor(t / 60), s = t - m * 60; return `${String(m).padStart(2, '0')}:${s.toFixed(2).padStart(5, '0')}`; }
+function renderLines() {
+  const box = $('lines'); box.innerHTML = '';
+  lines.forEach((l, i) => {
+    const d = document.createElement('div'); if (l.t === null) d.className = 'notime';
+    d.innerHTML = '<span class="t"></span><span></span>'; d.firstChild.textContent = fmt(l.t); d.lastChild.textContent = l.text;
+    d.onclick = () => { if (syncMode) { syncIdx = i; markSync(); } else if (l.t !== null && player) player.seekTo(l.t + offsetMs / 1000, true); };
+    box.appendChild(d);
+  });
+  markSync();
+}
+function markSync() { [...$('lines').children].forEach((el, i) => el.classList.toggle('target', syncMode && i === syncIdx)); }
+function scrollListTo(el) { const box = $('lines'); box.scrollTop = el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2; }
+function toggleSync() {
+  syncMode = !syncMode;
+  $('syncBtn').textContent = syncMode ? '時刻付けを終わる' : '時刻付けを始める';
+  $('tapBtn').hidden = !syncMode;
+  if (syncMode) {
+    if (!lines.length) applyLyrics(true);
+    syncIdx = Math.max(0, lines.findIndex(l => l.t === null));
+    toast('曲を再生して、各行が歌い始めた瞬間にボタンを押してください', 3500);
+  }
+  markSync();
+}
+$('syncBtn').onclick = toggleSync;
+function stamp() {
+  if (syncIdx >= lines.length) return;
+  lines[syncIdx].t = Math.max(0, nowSec() - offsetMs / 1000 - 0.15);
+  syncIdx++; lastIdx = -2; lastPageKey = null; renderLines();
+  $('lyricText').value = lines.map(l => (l.t === null ? '' : `[${fmt(l.t)}]`) + l.text).join('\n');
+  const el = $('lines').children[syncIdx]; if (el) scrollListTo(el);
+}
+$('tapBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); stamp(); });
+document.addEventListener('keydown', (e) => {
+  if (!syncMode || ['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) return;
+  if (e.code === 'Space') { e.preventDefault(); stamp(); }
+  else if (e.code === 'Backspace') { e.preventDefault(); if (syncIdx > 0) { syncIdx--; lines[syncIdx].t = null; renderLines(); } }
+});
+
+/* ---------- 辞書 ---------- */
+function cleanWord(w) { return w.toLowerCase().replace(/[’‘`]/g, "'").replace(/^[^a-z']+|[^a-z']+$/g, '').replace(/^'+/, ''); }
 function candidates(w) {
+  // 活用形・歌詞特有の省略形から見出し語の候補を作る（runnin' → running → run など）
   const c = [w], add = (x) => { c.push(x); if (/([bcdfgklmnprstvz])\1$/.test(x)) c.push(x.slice(0, -1)); };
   if (w.endsWith("'s")) c.push(w.slice(0, -2));
   if (w.endsWith("in'")) { c.push(w.slice(0, -1) + 'g'); add(w.slice(0, -3)); c.push(w.slice(0, -3) + 'e'); }
@@ -717,129 +929,213 @@ function candidates(w) {
 }
 async function fetchDef(w) {
   const cands = candidates(w);
-  const res = await Promise.all(cands.map(c =>
-    fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(c))
-      .then(r => r.ok ? r.json() : null).catch(() => null)));
+  const res = await Promise.all(cands.map(c => fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(c)).then(r => r.ok ? r.json() : null).catch(() => null)));
   const i = res.findIndex(Boolean);
   return i >= 0 ? { word: cands[i], data: res[i] } : null;
 }
 async function fetchJa(w) {
   try {
-    const r = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(w) + '&langpair=en|ja');
-    const j = await r.json(), t = j && j.responseData && j.responseData.translatedText;
+    const j = await (await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(w) + '&langpair=en|ja')).json();
+    const t = j && j.responseData && j.responseData.translatedText;
     return t && !/MYMEMORY|QUERY LENGTH|INVALID/i.test(t) ? t : '';
   } catch { return ''; }
 }
-const POS_JA = { noun: '名詞', verb: '動詞', adjective: '形容詞', adverb: '副詞', pronoun: '代名詞', preposition: '前置詞',
-                 conjunction: '接続詞', interjection: '間投詞', exclamation: '間投詞', determiner: '限定詞', article: '冠詞' };
+const POS_JA = { noun: '名詞', verb: '動詞', adjective: '形容詞', adverb: '副詞', pronoun: '代名詞', preposition: '前置詞', conjunction: '接続詞', interjection: '間投詞', exclamation: '間投詞', determiner: '限定詞', article: '冠詞' };
 function simplify(data) {
   const phon = data.flatMap(e => e.phonetics || []);
   return {
     phonetic: (data.find(e => e.phonetic) || {}).phonetic || (phon.find(p => p.text) || {}).text || '',
     audio: (phon.find(p => p.audio) || {}).audio || '',
-    meanings: data.flatMap(e => e.meanings || []).slice(0, 4).map(m => ({
-      pos: m.partOfSpeech, defs: (m.definitions || []).slice(0, 3).map(d => ({ d: d.definition, ex: d.example || '' })),
-    })),
+    meanings: data.flatMap(e => e.meanings || []).slice(0, 4).map(m => ({ pos: m.partOfSpeech, defs: (m.definitions || []).slice(0, 3).map(d => ({ d: d.definition, ex: d.example || '' })) })),
   };
 }
 const dictCache = loadJSON('lo-dict', {});
-let resumeAfterDict = false, dictReq = 0;
-let lookupCtx = null;
+let resumeAfterDict = false, dictReq = 0, lookupCtx = null;
+function pauseForSheet() { if (player && player.getPlayerState && player.getPlayerState() === 1) { player.pauseVideo(); resumeAfterDict = true; } }
 async function lookup(raw, el, lineIdx) {
   const w = cleanWord(raw); if (!w) return;
   lookupCtx = { lineIdx, vid: curVid };
   document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel')); if (el) el.classList.add('sel');
-  if (player && player.getPlayerState && player.getPlayerState() === 1) { player.pauseVideo(); resumeAfterDict = true; }
-  $('dict').classList.add('show');
-  $('dictBody').innerHTML = `<div class="hw">${esc(w)}</div><div class="hint">調べています…</div>`;
+  pauseForSheet(); openSheet('sheet-dict');
+  $('dictBody').innerHTML = `<div class="dword">${esc(w)}</div><div class="dsub">調べています…</div>`;
   const req = ++dictReq;
   let res = dictCache[w];
   if (!res) {
     const [def, ja] = await Promise.all([fetchDef(w), fetchJa(w)]);
     res = { w, base: def ? def.word : w, ja, info: def ? simplify(def.data) : null };
-    if (def || ja) {
-      dictCache[w] = res;
-      const keys = Object.keys(dictCache); if (keys.length > 800) delete dictCache[keys[0]];
-      saveJSON('lo-dict', dictCache);
-    }
+    if (def || ja) { dictCache[w] = res; const keys = Object.keys(dictCache); if (keys.length > 800) delete dictCache[keys[0]]; saveJSON('lo-dict', dictCache); }
   }
-  if (req === dictReq) renderDict(res);
+  if (req === dictReq) renderDict(res, null);
 }
-function renderDict(r) {
+function renderDict(r, v) {
   const i = r.info;
-  let h = `<div class="hw">${esc(r.w)}${r.base !== r.w ? ` <span class="ph">→ ${esc(r.base)}</span>` : ''}` +
-          (i && i.phonetic ? `<span class="ph">${esc(i.phonetic)}</span>` : '') +
-          (i && i.audio ? ` <button id="dictAudio">🔊</button>` : '') + `</div>`;
-  h += r.ja ? `<div class="ja">${esc(r.ja)}</div>` : `<div class="hint">日本語訳は取得できませんでした</div>`;
-  const saved = vocab.some(v => v.w === r.base);
-  h += `<button id="vocabAdd" class="${saved ? '' : 'primary'}">${saved ? '✓ 単語帳に登録済み' : '★ 単語帳に追加'}</button>`;
+  let h = `<div style="display:flex;align-items:center;gap:10px"><div class="dword">${esc(r.w)}</div>` +
+          (i && i.audio ? `<button class="roundbtn" id="dictAudio" aria-label="発音"><svg class="i" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>` : '') + `</div>`;
+  const sub = [r.base !== r.w ? `元の形：${esc(r.base)}` : '', i && i.phonetic ? esc(i.phonetic) : ''].filter(Boolean).join('　');
+  if (sub) h += `<div class="dsub">${sub}</div>`;
+  h += r.ja ? `<div class="dja">${esc(r.ja)}</div>` : `<div class="dsub" style="margin:6px 0 12px">日本語訳は取得できませんでした</div>`;
+  if (v) {
+    h += `<div class="actions">` + (v.vid ? `<button class="btn btn-gray" id="vJump">▶ この場面を聞く</button>` : '') +
+         `<button class="btn btn-gray" id="vLearn">${v.learned ? '↩ まだ覚えてない' : '✓ 覚えた'}</button></div>`;
+    if (v.line) h += `<div class="dsub" style="margin:8px 0">“${esc(v.line)}”${v.song ? ' — ' + esc(v.song) : ''}</div>`;
+  } else {
+    const saved = vocab.some(x => x.w === r.base);
+    h += `<div class="actions"><button class="btn ${saved ? 'btn-gray' : 'btn-primary'}" id="vocabAdd">${saved ? '✓ 単語帳に登録済み' : '＋ 単語帳に追加'}</button></div>`;
+  }
   if (i) i.meanings.forEach(m => {
-    h += `<div class="pos">${esc(POS_JA[m.pos] || m.pos)}</div><ol>` +
-         m.defs.map(d => `<li>${esc(d.d)}${d.ex ? `<div class="ex">${esc(d.ex)}</div>` : ''}</li>`).join('') + `</ol>`;
+    h += `<div class="dpos">${esc(POS_JA[m.pos] || m.pos)}</div><ol>` + m.defs.map(d => `<li>${esc(d.d)}${d.ex ? `<div class="dex">${esc(d.ex)}</div>` : ''}</li>`).join('') + `</ol>`;
   });
-  else h += `<div class="hint" style="margin-top:6px">英英辞書に見つかりませんでした（固有名詞・スラング・省略形かもしれません）</div>`;
+  else h += `<div class="dsub" style="margin-top:10px">英英辞書に見つかりませんでした（固有名詞・スラング・省略形かもしれません）</div>`;
+  if (v) h += `<div class="actions" style="margin-top:16px"><button class="btn btn-gray" id="vDel" style="color:var(--red)">単語帳から削除</button></div>`;
   $('dictBody').innerHTML = h;
   if (i && i.audio) $('dictAudio').onclick = () => new Audio(i.audio).play().catch(() => {});
-  $('vocabAdd').onclick = () => { if (!saved) { addVocab(r); renderDict(r); } };
+  if (v) {
+    if ($('vJump')) $('vJump').onclick = () => { closeSheet(); jumpTo(v); };
+    $('vLearn').onclick = () => { v.learned = !v.learned; saveVocab(); renderDict(r, v); };
+    $('vDel').onclick = () => { if (confirm(`「${v.w}」を単語帳から削除しますか？`)) { vocab.splice(vocab.indexOf(v), 1); saveVocab(); closeSheet(); } };
+  } else $('vocabAdd').onclick = () => { if (!vocab.some(x => x.w === r.base)) { addVocab(r); renderDict(r, null); } };
 }
-$('dictClose').onclick = () => {
-  $('dict').classList.remove('show');
+function onDictClosed() {
   document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel'));
   if (resumeAfterDict && player) player.playVideo();
   resumeAfterDict = false;
-};
+}
 
-/* ---------- プレイリスト ---------- */
-const PL_KEY = 'lo-playlist';
-let playlist = loadJSON(PL_KEY, []), curVid = null;
-function savePl() { saveJSON(PL_KEY, playlist); renderPl(); }
-function mkBtn(label, fn, title) { const b = document.createElement('button'); b.textContent = label; if (title) b.title = title; b.onclick = fn; return b; }
-function renderPl() {
-  const box = $('pl'); if (!box) return; box.textContent = '';
-  if (!playlist.length) { box.innerHTML = '<div class="hint">曲を再生して「★ 保存」を押すと、動画・歌詞・和訳をまとめて追加できます</div>'; return; }
-  playlist.forEach((it, i) => {
-    const d = document.createElement('div'); d.className = 'item' + (it.vid === curVid ? ' cur' : '');
-    const n = document.createElement('span'); n.className = 'name';
-    n.textContent = `${i + 1}. ${it.name}${it.lyrics ? '' : '（歌詞なし）'}`; n.onclick = () => playEntry(i);
-    d.append(n,
-      mkBtn('↑', () => { if (i > 0) { [playlist[i - 1], playlist[i]] = [playlist[i], playlist[i - 1]]; savePl(); } }, '上へ'),
-      mkBtn('🗑', () => { if (confirm(`「${it.name}」をプレイリストから削除しますか？`)) { playlist.splice(i, 1); savePl(); } }, '削除'));
-    box.appendChild(d);
+/* ---------- 単語帳 ---------- */
+let vocab = loadJSON('lo-vocab', []), vocabFilter = 'todo';
+function saveVocab() { saveJSON('lo-vocab', vocab); renderVocab(); }
+function addVocab(r) {
+  const c = lookupCtx || {}, li = c.lineIdx != null ? lines[c.lineIdx] : null;
+  vocab.push({ w: r.base, raw: r.w, ja: r.ja || '', info: r.info || null, line: li ? li.text : '', trans: (li && trans[c.lineIdx]) || '',
+               vid: c.vid || null, t: li && li.t !== null ? li.t + offsetMs / 1000 : null, song: songName(), added: Date.now(), learned: false, reviews: 0 });
+  saveVocab(); toast(`「${r.base}」を単語帳に追加しました`);
+}
+function showVocabDict(v) { lookupCtx = null; openSheet('sheet-dict'); renderDict(dictCache[v.raw] || { w: v.raw || v.w, base: v.w, ja: v.ja, info: v.info }, v); }
+function jumpTo(v) {
+  showTab('play');
+  const t = v.t || 0;
+  if (v.vid === curVid && player && player.seekTo) { player.seekTo(Math.max(0, t - 1), true); player.playVideo(); return; }
+  pendingSeek = t;
+  const i = playlist.findIndex(p => p.vid === v.vid);
+  if (i >= 0) playEntry(i); else { loadVideo(v.vid, false); }
+}
+function renderVocab() {
+  const box = $('vocab'), q = $('vocabSearch').value.trim().toLowerCase();
+  const todo = vocab.filter(v => !v.learned).length;
+  $('cardBtnText').textContent = vocab.length ? `カードで復習（${todo || vocab.length} 語）` : 'カードで復習';
+  const list = vocab.filter(v => (vocabFilter === 'all' || (vocabFilter === 'done') === !!v.learned) &&
+    (!q || [v.w, v.ja, v.line, v.song].join(' ').toLowerCase().includes(q))).sort((a, b) => b.added - a.added);
+  box.textContent = '';
+  if (!list.length) {
+    box.innerHTML = `<div class="cell muted">${vocab.length ? '該当する単語はありません' : '動画の下の歌詞の単語をタップ →「単語帳に追加」で登録できます'}</div>`;
+    return;
+  }
+  list.forEach(v => {
+    const c = document.createElement('button'); c.className = 'cell';
+    c.innerHTML = `<div class="cmain"><div class="ctitle"><b></b><span class="ja-inline"></span></div><div class="csub"></div></div><svg class="i chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>`;
+    c.querySelector('b').textContent = v.w; c.querySelector('.ja-inline').textContent = v.ja;
+    c.querySelector('.csub').textContent = v.line ? `“${v.line}”` : (v.song || '');
+    c.onclick = () => showVocabDict(v);
+    box.appendChild(c);
   });
 }
+$('vocabSearch').oninput = renderVocab;
+document.querySelectorAll('#vocabSeg button').forEach(b => b.onclick = () => {
+  vocabFilter = b.dataset.v; document.querySelectorAll('#vocabSeg button').forEach(x => x.classList.toggle('on', x === b)); renderVocab();
+});
+
+/* ---------- 単語カード ---------- */
+let cardPool = [], cardI = 0, cardOk = 0;
+function hiWord(line, word) {
+  const e = esc(line); if (!word) return e;
+  return e.replace(new RegExp('(' + esc(word).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<b>$1</b>');
+}
+$('cardBtn').onclick = () => {
+  cardPool = vocab.filter(v => !v.learned); if (!cardPool.length) cardPool = vocab.slice();
+  if (!cardPool.length) return toast('単語帳が空です。歌詞の単語をタップして登録してください', 3500);
+  for (let i = cardPool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cardPool[i], cardPool[j]] = [cardPool[j], cardPool[i]]; }
+  cardI = 0; cardOk = 0; if (player && player.getPlayerState && player.getPlayerState() === 1) player.pauseVideo();
+  $('card').classList.add('show'); showCard(false);
+};
+function showCard(answer) {
+  const box = $('cardBox');
+  const close = '<div class="cardbtns" style="margin-top:12px"><button class="btn btn-gray" id="cQuit">終了</button></div>';
+  if (cardI >= cardPool.length) {
+    box.innerHTML = `<div class="cw">おつかれさま！</div><div class="cctx">${cardPool.length} 語中 ${cardOk} 語を「覚えた」にしました</div>` + close;
+    $('cQuit').onclick = () => { $('card').classList.remove('show'); renderVocab(); }; return;
+  }
+  const v = cardPool[cardI], i = v.info;
+  let h = `<div class="count">${cardI + 1} / ${cardPool.length}</div><div class="cw">${esc(v.w)}</div>`;
+  if (v.line) h += `<div class="cctx">“${hiWord(v.line, v.raw)}”</div>`;
+  if (answer) {
+    h += `<div class="ja">${esc(v.ja || '（日本語訳なし）')}</div>`;
+    if (v.trans) h += `<div class="cctx">歌詞の訳：${esc(v.trans)}</div>`;
+    if (i && i.meanings && i.meanings[0]) h += `<ol>${i.meanings[0].defs.slice(0, 2).map(d => `<li>${esc(d.d)}</li>`).join('')}</ol>`;
+  }
+  h += '<div style="flex:1"></div>';
+  if (i && i.audio) h += `<div style="margin-bottom:12px"><button class="roundbtn" id="cAudio" aria-label="発音"><svg class="i" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/></svg></button></div>`;
+  h += answer ? `<div class="cardbtns"><button class="btn btn-gray" id="cNo">まだ</button><button class="btn btn-primary" id="cYes">覚えた</button></div>`
+              : `<div class="cardbtns"><button class="btn btn-primary" id="cShow">答えを見る</button></div>`;
+  box.innerHTML = h + close;
+  if ($('cAudio')) $('cAudio').onclick = () => new Audio(i.audio).play().catch(() => {});
+  $('cQuit').onclick = () => { $('card').classList.remove('show'); renderVocab(); };
+  if (answer) {
+    $('cNo').onclick = () => { v.reviews = (v.reviews || 0) + 1; cardI++; saveVocab(); showCard(false); };
+    $('cYes').onclick = () => { v.reviews = (v.reviews || 0) + 1; v.learned = true; cardOk++; cardI++; saveVocab(); showCard(false); };
+  } else $('cShow').onclick = () => showCard(true);
+}
+
+/* ---------- プレイリスト ---------- */
+let playlist = loadJSON('lo-playlist', []), plEditing = false;
+function savePl() { saveJSON('lo-playlist', playlist); renderPl(); updatePlayUI(); }
+function renderPl() {
+  const box = $('pl'); box.textContent = '';
+  if (!playlist.length) { box.innerHTML = '<div class="cell muted">再生画面の右上の ☆ で曲を保存できます</div>'; return; }
+  playlist.forEach((it, i) => {
+    const c = document.createElement('div'); c.className = 'cell tap';
+    if (plEditing) { const del = document.createElement('button'); del.className = 'delbtn'; del.textContent = '−'; del.onclick = (e) => { e.stopPropagation(); if (confirm(`「${it.title || it.name}」を削除しますか？`)) { playlist.splice(i, 1); savePl(); } }; c.appendChild(del); }
+    const img = document.createElement('img'); img.className = 'thumb'; img.loading = 'lazy'; img.alt = ''; img.src = `https://i.ytimg.com/vi/${encodeURIComponent(it.vid)}/mqdefault.jpg`; c.appendChild(img);
+    const m = document.createElement('div'); m.className = 'cmain';
+    m.innerHTML = '<div class="ctitle"></div><div class="csub"></div>';
+    m.firstChild.textContent = it.title || it.name; m.lastChild.textContent = it.artist || (it.lyrics ? '' : '歌詞なし');
+    c.appendChild(m);
+    if (it.vid === curVid && !plEditing) { const np = document.createElement('span'); np.className = 'nowplaying'; np.textContent = '再生中'; c.appendChild(np); }
+    if (plEditing && i > 0) { const up = document.createElement('button'); up.className = 'upbtn'; up.textContent = '↑'; up.onclick = (e) => { e.stopPropagation(); [playlist[i - 1], playlist[i]] = [playlist[i], playlist[i - 1]]; savePl(); }; c.appendChild(up); }
+    if (!plEditing) c.onclick = () => playEntry(i);
+    box.appendChild(c);
+  });
+}
+$('plEdit').onclick = () => { plEditing = !plEditing; $('plEdit').textContent = plEditing ? '完了' : '編集'; $('plEdit').style.fontWeight = plEditing ? '600' : ''; renderPl(); };
 function playEntry(i) {
   const it = playlist[i]; if (!it) return;
-  $('url').value = 'https://youtu.be/' + it.vid;
   $('qArtist').value = it.artist || ''; $('qTitle').value = it.title || '';
   $('lyricText').value = it.lyrics || ''; $('transText').value = it.trans || '';
-  setOffset(it.offset || 0);
-  applyLyrics(); loadVideo(it.vid);
-  status(`▶ ${it.name}`);
+  lyricSrc = it.src || (it.lyrics ? 'プレイリスト' : ''); autoSearchFor = null;
+  setOffset(it.offset || 0); applyLyrics(true); loadVideo(it.vid, true); showTab('play');
 }
 function nextSong() {
-  if (!playlist.length) return;
+  if (!playlist.length) return toast('プレイリストに曲がありません');
   const cur = playlist.findIndex(p => p.vid === curVid);
   let n;
-  if ($('shuffle').checked && playlist.length > 1) { do { n = Math.floor(Math.random() * playlist.length); } while (n === cur); }
+  if (set.shuffle && playlist.length > 1) { do { n = Math.floor(Math.random() * playlist.length); } while (n === cur); }
   else n = cur + 1;
-  if (n >= playlist.length) { status('プレイリストの最後まで再生しました'); return; }
+  if (n >= playlist.length) return toast('プレイリストの最後の曲です');
   playEntry(n);
 }
 $('nextBtn').onclick = nextSong;
 $('favBtn').onclick = () => {
-  if (!curVid) return status('先に動画を読み込んでください');
+  if (!curVid) return toast('先に動画を開いてください');
   const d = (player && player.getVideoData && player.getVideoData()) || {};
-  const artist = $('qArtist').value.trim(), title = $('qTitle').value.trim();
-  const entry = { vid: curVid, artist, title, name: artist && title ? `${artist} — ${title}` : (title || d.title || curVid),
-                  lyrics: $('lyricText').value, trans: $('transText').value, offset: offsetMs, saved: Date.now() };
+  const artist = $('qArtist').value.trim(), title = $('qTitle').value.trim() || d.title || curVid;
+  const entry = { vid: curVid, artist, title, name: artist ? `${artist} — ${title}` : title, lyrics: $('lyricText').value, trans: $('transText').value,
+                  offset: offsetMs, src: lyricSrc, saved: Date.now() };
   const i = playlist.findIndex(p => p.vid === curVid);
   if (i >= 0) playlist[i] = entry; else playlist.push(entry);
-  savePl();
-  status(i >= 0 ? `★ プレイリストを更新しました：${entry.name}` : `★ プレイリストに追加しました：${entry.name}`);
+  savePl(); toast(i >= 0 ? 'プレイリストの内容を更新しました' : '★ プレイリストに保存しました');
 };
-function download(name, body, type) {
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([body], { type })); a.download = name; a.click();
-}
+
+/* ---------- バックアップ・書き出し ---------- */
+function download(name, body, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([body], { type })); a.download = name; a.click(); }
 $('plExport').onclick = () => download('lyric-overlay-backup.json', JSON.stringify({ version: 2, playlist, vocab }, null, 1), 'application/json');
 $('plImportBtn').onclick = () => $('plImport').click();
 $('plImport').onchange = async (e) => {
@@ -848,128 +1144,49 @@ $('plImport').onchange = async (e) => {
     const data = JSON.parse(await f.text());
     const pl = Array.isArray(data) ? data : (data.playlist || []), vc = Array.isArray(data) ? [] : (data.vocab || []);
     if (!Array.isArray(pl) || !Array.isArray(vc)) throw new Error('形式が違います');
-    let added = 0, addedW = 0;
-    pl.filter(x => x && x.vid).forEach(x => { const i = playlist.findIndex(p => p.vid === x.vid); if (i >= 0) playlist[i] = x; else { playlist.push(x); added++; } });
-    vc.filter(x => x && x.w).forEach(x => { const i = vocab.findIndex(v => v.w === x.w); if (i >= 0) vocab[i] = x; else { vocab.push(x); addedW++; } });
-    savePl(); saveVocab(); status(`バックアップから復元しました（新規 ${added} 曲・${addedW} 語）`);
-  } catch (err) { status('復元に失敗しました: ' + err.message); }
+    let a1 = 0, a2 = 0;
+    pl.filter(x => x && x.vid).forEach(x => { const i = playlist.findIndex(p => p.vid === x.vid); if (i >= 0) playlist[i] = x; else { playlist.push(x); a1++; } });
+    vc.filter(x => x && x.w).forEach(x => { const i = vocab.findIndex(v => v.w === x.w); if (i >= 0) vocab[i] = x; else { vocab.push(x); a2++; } });
+    savePl(); saveVocab(); toast(`復元しました（新しく ${a1} 曲・${a2} 語）`);
+  } catch (err) { toast('復元に失敗しました: ' + err.message); }
   e.target.value = '';
 };
-renderPl();
-
-/* ---------- 単語帳 ---------- */
-const VOCAB_KEY = 'lo-vocab';
-let vocab = loadJSON(VOCAB_KEY, []), pendingSeek = null;
-function saveVocab() { saveJSON(VOCAB_KEY, vocab); renderVocab(); }
-function songName() {
-  const a = $('qArtist').value.trim(), t = $('qTitle').value.trim();
-  const d = (player && player.getVideoData && player.getVideoData()) || {};
-  return a && t ? `${a} — ${t}` : (t || d.title || '');
-}
-function addVocab(r) {
-  const c = lookupCtx || {}, li = c.lineIdx != null ? lines[c.lineIdx] : null;
-  vocab.push({
-    w: r.base, raw: r.w, ja: r.ja || '', info: r.info || null,
-    line: li ? li.text : '', trans: (li && trans[c.lineIdx]) || '',
-    vid: c.vid || null, t: li && li.t !== null ? li.t + offsetMs / 1000 : null,
-    song: songName(), added: Date.now(), learned: false, reviews: 0,
-  });
-  saveVocab(); status(`★ 単語帳に「${r.base}」を追加しました`);
-}
-function showVocabDict(v) {
-  lookupCtx = null;
-  if (player && player.getPlayerState && player.getPlayerState() === 1) { player.pauseVideo(); resumeAfterDict = true; }
-  $('dict').classList.add('show');
-  renderDict(dictCache[v.raw] || { w: v.raw || v.w, base: v.w, ja: v.ja, info: v.info });
-}
-function jumpTo(v) {
-  if (!v.vid) return status('この単語は再生位置の記録がありません');
-  const t = v.t || 0;
-  if (v.vid === curVid && player && player.seekTo) { player.seekTo(Math.max(0, t - 1), true); player.playVideo(); return; }
-  pendingSeek = t;
-  const i = playlist.findIndex(p => p.vid === v.vid);
-  if (i >= 0) playEntry(i);
-  else { $('qArtist').value = ''; $('qTitle').value = ''; $('url').value = 'https://youtu.be/' + v.vid; loadVideo(v.vid); status('歌詞はプレイリストに保存されていないので、動画だけ再生します'); }
-}
-function renderVocab() {
-  const box = $('vocab'); if (!box) return;
-  const q = $('vocabSearch').value.trim().toLowerCase(), f = $('vocabFilter').value;
-  $('vocabCount').textContent = vocab.length ? `（${vocab.length}語・覚えた ${vocab.filter(v => v.learned).length}）` : '';
-  const list = vocab.filter(v => (f === 'all' || (f === 'done') === !!v.learned) &&
-    (!q || [v.w, v.ja, v.line, v.song].join(' ').toLowerCase().includes(q))).sort((a, b) => b.added - a.added);
-  box.textContent = '';
-  if (!list.length) {
-    box.innerHTML = `<div class="hint">${vocab.length ? '該当する単語はありません' : '歌詞の単語をタップ →「★ 単語帳に追加」で登録できます'}</div>`;
-    return;
-  }
-  list.forEach(v => {
-    const d = document.createElement('div'); d.className = 'vitem' + (v.learned ? ' done' : '');
-    d.innerHTML = `<div class="vw"><b></b><span class="ja"></span></div>` + (v.line ? `<div class="vctx"></div>` : '') + `<div class="row"></div>`;
-    d.querySelector('b').textContent = v.w; d.querySelector('b').onclick = () => showVocabDict(v);
-    d.querySelector('.ja').textContent = v.ja;
-    if (v.line) d.querySelector('.vctx').textContent = `“${v.line}”` + (v.song ? ` — ${v.song}` : '');
-    const row = d.querySelector('.row');
-    if (v.vid) row.appendChild(mkBtn('▶ この場面を聞く', () => jumpTo(v)));
-    row.appendChild(mkBtn(v.learned ? '↩ まだ覚えてない' : '✓ 覚えた', () => { v.learned = !v.learned; saveVocab(); }));
-    row.appendChild(mkBtn('🗑', () => { if (confirm(`「${v.w}」を単語帳から削除しますか？`)) { vocab.splice(vocab.indexOf(v), 1); saveVocab(); } }, '削除'));
-    box.appendChild(d);
-  });
-}
-$('vocabSearch').oninput = renderVocab;
-$('vocabFilter').onchange = renderVocab;
 $('vocabCsv').onclick = () => {
-  if (!vocab.length) return status('単語帳が空です');
+  if (!vocab.length) return toast('単語帳が空です');
   const q = (s) => '"' + String(s || '').replace(/"/g, '""') + '"';
   const rows = [['単語', '意味', '歌詞の行', '和訳', '曲', '覚えた']].concat(vocab.map(v => [v.w, v.ja, v.line, v.trans, v.song, v.learned ? '○' : '']));
   download('vocab.csv', '﻿' + rows.map(r => r.map(q).join(',')).join('\r\n'), 'text/csv');
 };
-
-/* ---------- 単語カード復習 ---------- */
-let cardPool = [], cardI = 0, cardOk = 0;
-function hiWord(line, word) {
-  const e = esc(line); if (!word) return e;
-  const re = new RegExp('(' + esc(word).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
-  return e.replace(re, '<b>$1</b>');
+function timed() { return lines.filter(l => l.t !== null).map(l => ({ ...l, tr: trans[lines.indexOf(l)] || '' })); }
+function endOf(a, i) { return a[i + 1] ? a[i + 1].t : a[i].t + 5; }
+function srtTime(t) { const ms = Math.round(t * 1000), h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60; return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms % 1000).padStart(3, '0')}`; }
+function assTime(t) { const cs = Math.round(t * 100), h = Math.floor(cs / 360000), m = Math.floor(cs / 6000) % 60, s = Math.floor(cs / 100) % 60; return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`; }
+function assColor(hex) { const h = hex.replace('#', ''); return `&H00${h.slice(4, 6)}${h.slice(2, 4)}${h.slice(0, 2)}`.toUpperCase(); }
+function toSrt() { const a = timed(); return a.map((l, i) => `${i + 1}\n${srtTime(l.t)} --> ${srtTime(endOf(a, i))}\n${l.text}${l.tr ? '\n' + l.tr : ''}\n`).join('\n'); }
+function toAss() {
+  const a = timed(), size = Math.round(set.size * 2.4), align = set.pos === 'top' ? 8 : set.pos === 'middle' ? 5 : 2, marginV = 86;
+  const ae = (s) => s.replace(/[{}]/g, '').replace(/\n/g, '\\N');
+  let s = `[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\n` +
+    `Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n` +
+    `Style: Lyric,Arial,${size},${assColor(set.color)},&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,${align},80,80,${marginV},1\n` +
+    `Style: Trans,Yu Gothic UI,${Math.round(size * .6)},${assColor(set.tcolor)},&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,2,${align},80,80,${marginV},1\n\n` +
+    `[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
+  const off = offsetMs / 1000;
+  a.forEach((l, i) => {
+    if (!l.text) return;
+    const tr = l.tr ? `\\N{\\rTrans}${ae(l.tr)}` : '';
+    s += `Dialogue: 0,${assTime(Math.max(0, l.t + off))},${assTime(Math.max(0, endOf(a, i) + off))},Lyric,,0,0,0,,{\\fad(150,150)}${ae(l.text)}${tr}\n`;
+  });
+  return s;
 }
-$('cardBtn').onclick = () => {
-  cardPool = vocab.filter(v => !v.learned); if (!cardPool.length) cardPool = vocab.slice();
-  if (!cardPool.length) return status('単語帳が空です。歌詞の単語をタップして登録してください');
-  for (let i = cardPool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cardPool[i], cardPool[j]] = [cardPool[j], cardPool[i]]; }
-  cardI = 0; cardOk = 0;
-  if (player && player.getPlayerState && player.getPlayerState() === 1) player.pauseVideo();
-  $('card').classList.add('show'); showCard();
-};
-function showCard(answer) {
-  const box = $('cardBox');
-  if (cardI >= cardPool.length) {
-    box.innerHTML = `<div class="cw">おつかれさま！</div><div>${cardPool.length} 語中 ${cardOk} 語を「覚えた」にしました</div><div class="row" style="margin-top:14px"><button id="cQuit" class="primary">閉じる</button></div>`;
-    $('cQuit').onclick = () => $('card').classList.remove('show'); return;
-  }
-  const v = cardPool[cardI], i = v.info;
-  let h = `<div class="hint">${cardI + 1} / ${cardPool.length}</div><div class="cw">${esc(v.w)}</div>`;
-  if (v.line) h += `<div class="cctx">“${hiWord(v.line, v.raw)}”</div>`;
-  if (answer) {
-    h += `<div class="ja">${esc(v.ja || '（日本語訳なし）')}</div>`;
-    if (v.trans) h += `<div class="hint">歌詞の訳：${esc(v.trans)}</div>`;
-    if (i && i.meanings && i.meanings[0]) h += `<ol>${i.meanings[0].defs.slice(0, 2).map(d => `<li>${esc(d.d)}</li>`).join('')}</ol>`;
-    h += `<div class="row" style="margin-top:14px"><button id="cNo">✗ まだ</button><button id="cYes" class="primary">✓ 覚えた</button></div>`;
-  } else {
-    h += `<div class="row" style="margin-top:14px"><button id="cShow" class="primary" style="padding:12px 28px">答えを見る</button></div>`;
-  }
-  h += `<div class="row" style="margin-top:10px">` + (i && i.audio ? `<button id="cAudio">🔊 発音</button>` : '') + `<button id="cQuit">終了</button></div>`;
-  box.innerHTML = h;
-  if ($('cAudio')) $('cAudio').onclick = () => new Audio(i.audio).play().catch(() => {});
-  $('cQuit').onclick = () => { $('card').classList.remove('show'); renderVocab(); };
-  if (answer) {
-    $('cNo').onclick = () => { v.reviews = (v.reviews || 0) + 1; cardI++; saveVocab(); showCard(); };
-    $('cYes').onclick = () => { v.reviews = (v.reviews || 0) + 1; v.learned = true; cardOk++; cardI++; saveVocab(); showCard(); };
-  } else $('cShow').onclick = () => showCard(true);
-}
-renderVocab();
-// はじめて（プレイリストが空）のときは使い方を開いておく
-if (!playlist.length) $('helpBox').open = true;
+document.querySelectorAll('[data-exp]').forEach(b => b.onclick = () => {
+  if (!timed().length) return toast('タイミング付きの歌詞がありません');
+  const kind = b.dataset.exp;
+  const body = kind === 'lrc' ? lines.map(l => (l.t === null ? '' : `[${fmt(l.t)}]`) + l.text).join('\n') : kind === 'srt' ? toSrt() : toAss();
+  download(`${(songName() || 'lyrics').replace(/[\\/:*?"<>|]/g, '_')}.${kind}`, '﻿' + body, 'text/plain;charset=utf-8');
+});
 
-/* ---------- 新しい版のお知らせ（ホーム画面アプリには再読み込みボタンが無いため） ---------- */
+/* ---------- 新しい版のお知らせ ---------- */
 const APP_VER = ($('ver').textContent.match(/版:\s*(\S+)/) || [])[1];
 let newVer = null;
 async function checkUpdate() {
@@ -980,8 +1197,10 @@ async function checkUpdate() {
   } catch {}
 }
 $('updBtn').onclick = () => location.replace('./?v=' + encodeURIComponent(newVer || Date.now()));
-checkUpdate();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+
+/* ---------- 起動 ---------- */
+applySet(); setOffset(0); renderPl(); renderVocab(); renderNow(-1); updatePlayUI(); checkUpdate();
 </script>
 <script src="https://www.youtube.com/iframe_api"></script>
 </body>
