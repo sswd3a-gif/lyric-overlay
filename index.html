@@ -40,6 +40,29 @@
   #tapBtn { display: none; width: 100%; padding: 18px; font-size: 18px; margin-top: 6px; }
   #tapBtn.show { display: block; }
   #lines { position: relative; }
+  /* 今の行（単語タップ用） */
+  #nowLine { margin-top: 6px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  #nowText { font-size: 18px; line-height: 1.7; min-height: 1.7em; }
+  #nowTrans { color: var(--trans-color); font-size: 13px; }
+  .w { cursor: pointer; border-radius: 4px; padding: 0 1px; }
+  .w:hover { background: #2a3550; }
+  .w.sel { background: var(--accent); color: #fff; }
+  /* 辞書ポップアップ */
+  #dict { position: fixed; left: 8px; right: 8px; bottom: 8px; max-width: 520px; margin: 0 auto; max-height: 55vh; overflow: auto;
+          background: #1e2330; border: 1px solid var(--accent); border-radius: 12px; padding: 14px; z-index: 2000; display: none; box-shadow: 0 8px 30px rgba(0,0,0,.6); }
+  #dict.show { display: block; }
+  #dict .hw { font-size: 22px; font-weight: 800; }
+  #dict .ph { color: var(--muted); margin-left: 6px; font-weight: 400; font-size: 15px; }
+  #dict .ja { font-size: 18px; color: var(--trans-color); margin: 4px 0 6px; }
+  #dict .pos { color: var(--accent); font-size: 12px; margin-top: 8px; font-weight: 700; }
+  #dict ol { margin: 2px 0 0 20px; padding: 0; }
+  #dict li { margin-bottom: 3px; }
+  #dict .ex { color: var(--muted); font-style: italic; font-size: 13px; }
+  /* プレイリスト */
+  #pl .item { display: flex; align-items: center; gap: 6px; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  #pl .item.cur { background: #24304a; border-radius: 6px; }
+  #pl .name { flex: 1; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #pl .item button { padding: 2px 8px; }
   @media (max-width: 1000px) {
     /* スマホ・タブレットでは動画＋操作ボタンをページ全体で上部に固定し、歌詞欄をスクロールしても見え続けるように */
     main > section { position: sticky; top: 0; z-index: 10; background: var(--bg); padding-bottom: 6px; }
@@ -91,11 +114,28 @@
       <button id="againBtn">↺ もう一度</button>
       <label style="min-width:auto">速度</label>
       <select id="rate"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option></select>
+      <button id="favBtn">★ 保存</button>
+    </div>
+    <div id="nowLine">
+      <div id="nowText"><span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span></div>
+      <div id="nowTrans"></div>
     </div>
 
   </section>
 
   <aside>
+    <div class="panel">
+      <h2>プレイリスト</h2>
+      <div id="pl"></div>
+      <div class="row" style="margin-top:6px">
+        <button id="nextBtn">⏭ 次の曲</button>
+        <label style="min-width:auto"><input type="checkbox" id="autoNext" checked> 終わったら次へ</label>
+        <label style="min-width:auto"><input type="checkbox" id="shuffle"> シャッフル</label>
+      </div>
+      <div class="row"><button id="plExport">バックアップを保存</button><button id="plImportBtn">バックアップから復元</button><input type="file" id="plImport" accept=".json" hidden></div>
+      <div class="hint">保存先はこの端末のブラウザの中です。ブラウザのデータを消す前や機種変更の前は「バックアップを保存」をしてください。</div>
+    </div>
+
     <div class="panel">
       <h2>表示スタイル</h2>
       <div class="row">
@@ -151,6 +191,8 @@
   </aside>
 </main>
 
+<div id="dict"><button id="dictClose" style="float:right">✕</button><div id="dictBody"></div></div>
+
 <script>
 const $ = (id) => document.getElementById(id);
 let player = null, lines = [], trans = [], offsetMs = 0, syncMode = false, syncIdx = 0, lastIdx = -2;
@@ -172,17 +214,25 @@ window.onYouTubeIframeAPIReady = () => { status('YouTube プレイヤー準備OK
 $('loadBtn').onclick = () => {
   const id = parseId($('url').value);
   if (!id) return status('URL から動画IDを読み取れませんでした');
+  $('qArtist').value = ''; $('qTitle').value = '';
+  loadVideo(id);
+};
+function loadVideo(id) {
+  curVid = id; loopIdx = -1; $('loopBtn').className = ''; renderPl();
   if (player && player.loadVideoById) { player.loadVideoById(id); return; }
   player = new YT.Player('player', {
     videoId: id,
     playerVars: { rel: 0, modestbranding: 1, playsinline: 1, fs: 0 },
     events: {
       onReady: () => { status('読み込み完了'); guessTitle(); requestAnimationFrame(tick); },
-      onStateChange: (e) => { if (e.data === YT.PlayerState.PLAYING) guessTitle(); },
+      onStateChange: (e) => {
+        if (e.data === YT.PlayerState.PLAYING) { guessTitle(); player.setPlaybackRate(+$('rate').value); }
+        if (e.data === YT.PlayerState.ENDED && $('autoNext').checked && loopIdx < 0) nextSong();
+      },
       onError: (e) => status('再生エラー (' + e.data + ')：この動画は埋め込み再生が禁止されている可能性があります'),
     },
   });
-};
+}
 $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('loadBtn').click(); });
 function guessTitle() {
   const d = player.getVideoData && player.getVideoData();
@@ -286,6 +336,9 @@ function tick() {
     $('trans').textContent = idx >= 0 && trans[idx] ? trans[idx] : '';
     const nx = lines[idx + 1];
     $('next').textContent = $('showNext').checked && nx ? nx.text : '';
+    if (idx >= 0) wordsInto($('nowText'), lines[idx].text);
+    else $('nowText').innerHTML = '<span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span>';
+    $('nowTrans').textContent = idx >= 0 && trans[idx] ? trans[idx] : '';
     document.querySelectorAll('#lines div').forEach((el, i) => el.classList.toggle('on', i === idx));
     const on = document.querySelector('#lines div.on'); if (on && !syncMode) scrollListTo(on);
   }
@@ -296,7 +349,7 @@ function renderLines() {
   const box = $('lines'); box.innerHTML = '';
   lines.forEach((l, i) => {
     const d = document.createElement('div'); if (l.t === null) d.className = 'notime';
-    d.innerHTML = `<span class="t">${fmt(l.t)}</span><span></span>`; d.lastChild.textContent = l.text;
+    d.innerHTML = `<span class="t">${fmt(l.t)}</span><span></span>`; wordsInto(d.lastChild, l.text);
     d.onclick = () => { if (syncMode) { syncIdx = i; markSync(); } else if (l.t !== null && player) player.seekTo(l.t + offsetMs / 1000, true); };
     box.appendChild(d);
   });
@@ -392,6 +445,176 @@ $('prevBtn').onclick = () => {
   if (i >= 0) { if (loopIdx >= 0) loopIdx = i; player.seekTo(lineStart(i), true); }
 };
 $('rate').onchange = (e) => player && player.setPlaybackRate(+e.target.value);
+
+/* ---------- 保存ヘルパー（この端末のブラウザ内） ---------- */
+function loadJSON(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch { return d; } }
+function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { status('保存に失敗しました: ' + e.message); return false; } }
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- 単語タップ辞書 ---------- */
+function wordsInto(container, text) {
+  container.textContent = '';
+  text.split(/(\s+)/).forEach(tok => {
+    if (!tok) return;
+    if (/^\s+$/.test(tok)) { container.appendChild(document.createTextNode(tok)); return; }
+    const s = document.createElement('span'); s.className = 'w'; s.textContent = tok;
+    s.addEventListener('click', (e) => { if (syncMode) return; e.stopPropagation(); lookup(tok, s); });
+    container.appendChild(s);
+  });
+}
+function cleanWord(w) {
+  return w.toLowerCase().replace(/[’‘`]/g, "'").replace(/^[^a-z']+|[^a-z']+$/g, '').replace(/^'+/, '');
+}
+// 活用形・歌詞特有の省略形から辞書の見出し語の候補を作る（running → run など）
+function candidates(w) {
+  const c = [w], add = (x) => { c.push(x); if (/([bcdfgklmnprstvz])\1$/.test(x)) c.push(x.slice(0, -1)); };
+  if (w.endsWith("'s")) c.push(w.slice(0, -2));
+  if (w.endsWith("in'")) { c.push(w.slice(0, -1) + 'g'); add(w.slice(0, -3)); c.push(w.slice(0, -3) + 'e'); }
+  if (w.endsWith("'")) c.push(w.slice(0, -1));
+  if (w.endsWith('ies')) c.push(w.slice(0, -3) + 'y');
+  if (w.endsWith('es')) c.push(w.slice(0, -2));
+  if (w.endsWith('s') && !w.endsWith('ss')) c.push(w.slice(0, -1));
+  if (w.endsWith('ied')) c.push(w.slice(0, -3) + 'y');
+  if (w.endsWith('ed')) { add(w.slice(0, -2)); c.push(w.slice(0, -1)); }
+  if (w.endsWith('ing')) { add(w.slice(0, -3)); c.push(w.slice(0, -3) + 'e'); }
+  if (w.endsWith('er')) { add(w.slice(0, -2)); c.push(w.slice(0, -1)); }
+  if (w.endsWith('est')) { add(w.slice(0, -3)); c.push(w.slice(0, -2)); }
+  if (w.endsWith('ly')) c.push(w.slice(0, -2));
+  return [...new Set(c)].filter(x => x.length > 1 || x === 'i' || x === 'a').slice(0, 8);
+}
+async function fetchDef(w) {
+  const cands = candidates(w);
+  const res = await Promise.all(cands.map(c =>
+    fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(c))
+      .then(r => r.ok ? r.json() : null).catch(() => null)));
+  const i = res.findIndex(Boolean);
+  return i >= 0 ? { word: cands[i], data: res[i] } : null;
+}
+async function fetchJa(w) {
+  try {
+    const r = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(w) + '&langpair=en|ja');
+    const j = await r.json(), t = j && j.responseData && j.responseData.translatedText;
+    return t && !/MYMEMORY|QUERY LENGTH|INVALID/i.test(t) ? t : '';
+  } catch { return ''; }
+}
+const POS_JA = { noun: '名詞', verb: '動詞', adjective: '形容詞', adverb: '副詞', pronoun: '代名詞', preposition: '前置詞',
+                 conjunction: '接続詞', interjection: '間投詞', exclamation: '間投詞', determiner: '限定詞', article: '冠詞' };
+function simplify(data) {
+  const phon = data.flatMap(e => e.phonetics || []);
+  return {
+    phonetic: (data.find(e => e.phonetic) || {}).phonetic || (phon.find(p => p.text) || {}).text || '',
+    audio: (phon.find(p => p.audio) || {}).audio || '',
+    meanings: data.flatMap(e => e.meanings || []).slice(0, 4).map(m => ({
+      pos: m.partOfSpeech, defs: (m.definitions || []).slice(0, 3).map(d => ({ d: d.definition, ex: d.example || '' })),
+    })),
+  };
+}
+const dictCache = loadJSON('lo-dict', {});
+let resumeAfterDict = false, dictReq = 0;
+async function lookup(raw, el) {
+  const w = cleanWord(raw); if (!w) return;
+  document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel')); el.classList.add('sel');
+  if (player && player.getPlayerState && player.getPlayerState() === 1) { player.pauseVideo(); resumeAfterDict = true; }
+  $('dict').classList.add('show');
+  $('dictBody').innerHTML = `<div class="hw">${esc(w)}</div><div class="hint">調べています…</div>`;
+  const req = ++dictReq;
+  let res = dictCache[w];
+  if (!res) {
+    const [def, ja] = await Promise.all([fetchDef(w), fetchJa(w)]);
+    res = { w, base: def ? def.word : w, ja, info: def ? simplify(def.data) : null };
+    if (def || ja) {
+      dictCache[w] = res;
+      const keys = Object.keys(dictCache); if (keys.length > 800) delete dictCache[keys[0]];
+      saveJSON('lo-dict', dictCache);
+    }
+  }
+  if (req === dictReq) renderDict(res);
+}
+function renderDict(r) {
+  const i = r.info;
+  let h = `<div class="hw">${esc(r.w)}${r.base !== r.w ? ` <span class="ph">→ ${esc(r.base)}</span>` : ''}` +
+          (i && i.phonetic ? `<span class="ph">${esc(i.phonetic)}</span>` : '') +
+          (i && i.audio ? ` <button id="dictAudio">🔊</button>` : '') + `</div>`;
+  h += r.ja ? `<div class="ja">${esc(r.ja)}</div>` : `<div class="hint">日本語訳は取得できませんでした</div>`;
+  if (i) i.meanings.forEach(m => {
+    h += `<div class="pos">${esc(POS_JA[m.pos] || m.pos)}</div><ol>` +
+         m.defs.map(d => `<li>${esc(d.d)}${d.ex ? `<div class="ex">${esc(d.ex)}</div>` : ''}</li>`).join('') + `</ol>`;
+  });
+  else h += `<div class="hint" style="margin-top:6px">英英辞書に見つかりませんでした（固有名詞・スラング・省略形かもしれません）</div>`;
+  $('dictBody').innerHTML = h;
+  if (i && i.audio) $('dictAudio').onclick = () => new Audio(i.audio).play().catch(() => {});
+}
+$('dictClose').onclick = () => {
+  $('dict').classList.remove('show');
+  document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel'));
+  if (resumeAfterDict && player) player.playVideo();
+  resumeAfterDict = false;
+};
+
+/* ---------- プレイリスト ---------- */
+const PL_KEY = 'lo-playlist';
+let playlist = loadJSON(PL_KEY, []), curVid = null;
+function savePl() { saveJSON(PL_KEY, playlist); renderPl(); }
+function mkBtn(label, fn, title) { const b = document.createElement('button'); b.textContent = label; if (title) b.title = title; b.onclick = fn; return b; }
+function renderPl() {
+  const box = $('pl'); if (!box) return; box.textContent = '';
+  if (!playlist.length) { box.innerHTML = '<div class="hint">曲を再生して「★ 保存」を押すと、動画・歌詞・和訳をまとめて追加できます</div>'; return; }
+  playlist.forEach((it, i) => {
+    const d = document.createElement('div'); d.className = 'item' + (it.vid === curVid ? ' cur' : '');
+    const n = document.createElement('span'); n.className = 'name';
+    n.textContent = `${i + 1}. ${it.name}${it.lyrics ? '' : '（歌詞なし）'}`; n.onclick = () => playEntry(i);
+    d.append(n,
+      mkBtn('↑', () => { if (i > 0) { [playlist[i - 1], playlist[i]] = [playlist[i], playlist[i - 1]]; savePl(); } }, '上へ'),
+      mkBtn('🗑', () => { if (confirm(`「${it.name}」をプレイリストから削除しますか？`)) { playlist.splice(i, 1); savePl(); } }, '削除'));
+    box.appendChild(d);
+  });
+}
+function playEntry(i) {
+  const it = playlist[i]; if (!it) return;
+  $('url').value = 'https://youtu.be/' + it.vid;
+  $('qArtist').value = it.artist || ''; $('qTitle').value = it.title || '';
+  $('lyricText').value = it.lyrics || ''; $('transText').value = it.trans || '';
+  offsetMs = it.offset || 0; $('offset').value = offsetMs; $('offsetV').textContent = (offsetMs > 0 ? '+' : '') + offsetMs + ' ms';
+  applyLyrics(); loadVideo(it.vid);
+  status(`▶ ${it.name}`);
+}
+function nextSong() {
+  if (!playlist.length) return;
+  const cur = playlist.findIndex(p => p.vid === curVid);
+  let n;
+  if ($('shuffle').checked && playlist.length > 1) { do { n = Math.floor(Math.random() * playlist.length); } while (n === cur); }
+  else n = cur + 1;
+  if (n >= playlist.length) { status('プレイリストの最後まで再生しました'); return; }
+  playEntry(n);
+}
+$('nextBtn').onclick = nextSong;
+$('favBtn').onclick = () => {
+  if (!curVid) return status('先に動画を読み込んでください');
+  const d = (player && player.getVideoData && player.getVideoData()) || {};
+  const artist = $('qArtist').value.trim(), title = $('qTitle').value.trim();
+  const entry = { vid: curVid, artist, title, name: artist && title ? `${artist} — ${title}` : (title || d.title || curVid),
+                  lyrics: $('lyricText').value, trans: $('transText').value, offset: offsetMs, saved: Date.now() };
+  const i = playlist.findIndex(p => p.vid === curVid);
+  if (i >= 0) playlist[i] = entry; else playlist.push(entry);
+  savePl();
+  status(i >= 0 ? `★ プレイリストを更新しました：${entry.name}` : `★ プレイリストに追加しました：${entry.name}`);
+};
+$('plExport').onclick = () => {
+  const blob = new Blob([JSON.stringify(playlist, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'lyric-playlist.json'; a.click();
+};
+$('plImportBtn').onclick = () => $('plImport').click();
+$('plImport').onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const arr = JSON.parse(await f.text()); if (!Array.isArray(arr)) throw new Error('形式が違います');
+    let added = 0;
+    arr.filter(x => x && x.vid).forEach(x => { const i = playlist.findIndex(p => p.vid === x.vid); if (i >= 0) playlist[i] = x; else { playlist.push(x); added++; } });
+    savePl(); status(`バックアップから復元しました（新規 ${added} 曲）`);
+  } catch (err) { status('復元に失敗しました: ' + err.message); }
+  e.target.value = '';
+};
+renderPl();
 </script>
 <script src="https://www.youtube.com/iframe_api"></script>
 </body>
