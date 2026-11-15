@@ -90,9 +90,14 @@
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   #exitFs { display: none; position: absolute; top: calc(var(--safe-t) + 10px); right: 14px; z-index: 3; width: 36px; height: 36px; border-radius: 50%;
             background: rgba(60,60,67,.6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); color: #fff; font-size: 17px; }
-  body.fs #scr-play { z-index: 50; bottom: 0; }
-  body.fs #tabbar { display: none; }
-  body.fs #stage { position: fixed; inset: 0; width: auto; margin: 0; border-radius: 0; aspect-ratio: auto; z-index: 60; }
+  body.fs { overflow: hidden; background: #000; }
+  body.fs #scr-play { z-index: 50; bottom: 0; overflow: hidden; }
+  body.fs #tabbar, body.fs #updBar, body.fs #playTop .navrow { display: none; }
+  body.fs #playTop { position: fixed; inset: 0; z-index: 100; padding: 0; background: #000; }
+  body.fs #stage { position: fixed; inset: 0; width: auto; height: auto; margin: 0; border-radius: 0; aspect-ratio: auto; z-index: 60; }
+  /* 縦持ちのときは画面ごと90°回して横型表示にする */
+  body.fs.rot #stage { inset: auto; top: 50%; left: 50%; width: var(--fs-w); height: var(--fs-h); transform: translate(-50%, -50%) rotate(90deg); }
+  body.fs.rot #exitFs { top: 12px; right: calc(var(--safe-t) + 10px); }
   body.fs #exitFs { display: block; }
   body.fs #overlay .ol { font-size: calc(var(--lyric-size) * 1.5 * var(--fit, 1)); }
   #stage:fullscreen #overlay .ol { font-size: calc(var(--lyric-size) * 1.5 * var(--fit, 1)); }
@@ -434,7 +439,7 @@
       <li>下の歌詞の<b>単語をタップ</b>で意味。<b>単語帳に追加</b>して「カードで復習」</li>
       <li>気に入った曲は右上の <b>☆</b> でプレイリストに保存</li>
     </ol></div>
-    <div class="sfoot"><span id="ver">版: 2026-11-15k</span></div></div>
+    <div class="sfoot"><span id="ver">版: 2026-11-15l</span></div></div>
   </div>
 </section>
 
@@ -744,15 +749,29 @@ $('rateBtn').onclick = () => {
   toast(`再生速度 ${rate}×`);
 };
 $('timingBtn').onclick = () => openSheet('sheet-timing', false);
+// 全画面: スマホ（タッチ端末）はアプリ内の全画面。縦持ちなら自動で90°回して横型表示にする
+const touchDev = navigator.maxTouchPoints > 0 || /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
 $('fsBtn').onclick = () => {
-  const st = $('stage'), iOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  if (st.requestFullscreen && !iOS) st.requestFullscreen().then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch {} }).catch(() => pseudoFs(true));
+  const st = $('stage');
+  if (!touchDev && st.requestFullscreen) st.requestFullscreen().catch(() => pseudoFs(true));
   else pseudoFs(true);
 };
-function pseudoFs(on) { document.body.classList.toggle('fs', on); setTimeout(fitOverlay, 60); if (on) toast('横向きにすると大きく見られます'); }
-$('exitFs').onclick = () => pseudoFs(false);
+function layoutFs() {
+  const b = document.body, on = b.classList.contains('fs'), W = window.innerWidth, H = window.innerHeight;
+  b.classList.toggle('rot', on && H > W);
+  if (on && H > W) { b.style.setProperty('--fs-w', H + 'px'); b.style.setProperty('--fs-h', W + 'px'); }
+  setTimeout(fitOverlay, 60);
+}
+function pseudoFs(on) {
+  document.body.classList.toggle('fs', on);
+  if (on) { try { window.scrollTo(0, 0); } catch {} try { screen.orientation.lock('landscape').catch(() => {}); } catch {} }
+  else { try { screen.orientation.unlock(); } catch {} }
+  layoutFs();
+}
+$('exitFs').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else pseudoFs(false); };
 document.addEventListener('fullscreenchange', () => setTimeout(fitOverlay, 100));
-window.addEventListener('resize', () => setTimeout(fitOverlay, 60));
+window.addEventListener('resize', () => setTimeout(layoutFs, 60));
+window.addEventListener('orientationchange', () => setTimeout(layoutFs, 300));
 
 /* ---------- メインループ ---------- */
 function tick() {
