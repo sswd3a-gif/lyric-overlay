@@ -10,20 +10,45 @@
 <link rel="icon" type="image/png" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Lyric">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
 <style>
   /* ===== iOS ダーク風のデザイントークン ===== */
+  /* ライト（iOS のシステムグレー基準）。端末がダークなら下で上書き */
   :root {
-    --bg: #000; --bg2: #1c1c1e; --bg3: #2c2c2e; --fill: rgba(118,118,128,.24);
-    --sep: rgba(84,84,88,.55); --label: #fff; --label2: rgba(235,235,245,.6); --label3: rgba(235,235,245,.3);
-    --tint: #0a84ff; --red: #ff453a; --green: #30d158;
+    --bg: #f2f2f7; --bg2: #ffffff; --bg3: #e5e5ea; --fill: rgba(118,118,128,.12);
+    --sep: rgba(60,60,67,.22); --label: #000; --label2: rgba(60,60,67,.62); --label3: rgba(60,60,67,.3);
+    --tint: #007aff; --red: #ff3b30; --green: #34c759; --green-fg: #248a3d;
+    --navbg: rgba(242,242,247,.86); --barbg: rgba(249,249,249,.92); --segon: #ffffff; --switchoff: #e9e9ea;
+    --cardbg: rgba(242,242,247,.98); --toastbg: rgba(255,255,255,.97); --trans-ui: #a86a00; --shadow: rgba(0,0,0,.14);
     --lyric-color: #fff; --trans-color: #ffe08a; --lyric-size: 24px; --dim: .4;
     --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
     --tabbar-h: calc(50px + var(--safe-b));
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1c1e; --bg2: #2c2c2e; --bg3: #3a3a3c; --fill: rgba(118,118,128,.24);
+      --sep: rgba(84,84,88,.6); --label: #fff; --label2: rgba(235,235,245,.6); --label3: rgba(235,235,245,.3);
+      --tint: #0a84ff; --red: #ff453a; --green: #30d158; --green-fg: #5fe07f;
+      --navbg: rgba(28,28,30,.86); --barbg: rgba(32,32,34,.92); --segon: #636366; --switchoff: #48484a;
+      --cardbg: rgba(28,28,30,.98); --toastbg: rgba(58,58,60,.97); --trans-ui: #ffd56b; --shadow: rgba(0,0,0,.45);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1c1e; --bg2: #2c2c2e; --bg3: #3a3a3c; --fill: rgba(118,118,128,.24);
+    --sep: rgba(84,84,88,.6); --label: #fff; --label2: rgba(235,235,245,.6); --label3: rgba(235,235,245,.3);
+    --tint: #0a84ff; --red: #ff453a; --green: #30d158; --green-fg: #5fe07f;
+    --navbg: rgba(28,28,30,.86); --barbg: rgba(32,32,34,.92); --segon: #636366; --switchoff: #48484a;
+    --cardbg: rgba(28,28,30,.98); --toastbg: rgba(58,58,60,.97); --trans-ui: #ffd56b; --shadow: rgba(0,0,0,.45);
     color-scheme: dark;
   }
+  /* アクセント色（オレンジは Brave に近い色） */
+  :root[data-accent="orange"] { --tint: #fb542b; }
+  :root[data-accent="purple"] { --tint: #6e5cf6; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   [hidden] { display: none !important; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--label); overflow: hidden;
@@ -43,7 +68,7 @@
 
   /* ナビゲーションバー */
   .nav { position: sticky; top: 0; z-index: 5; padding: calc(var(--safe-t) + 6px) 16px 8px;
-         background: rgba(0,0,0,.82); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
+         background: var(--navbg); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
   .nav h1 { margin: 6px 0 0; font-size: 32px; font-weight: 800; letter-spacing: .3px; }
   .nav .navrow { display: flex; align-items: center; justify-content: space-between; min-height: 36px; gap: 8px; }
   .navbtn { color: var(--tint); display: inline-flex; align-items: center; gap: 4px; font-size: 17px; min-height: 36px; }
@@ -79,7 +104,7 @@
   #nowCard { margin: 10px 16px 0; padding: 12px 14px; background: var(--bg2); border-radius: 14px; }
   #nowText .ln { color: var(--label2); font-size: 16px; line-height: 1.55; overflow-wrap: anywhere; }
   #nowText .ln.cur { color: var(--label); font-weight: 600; }
-  #nowText .tr { color: var(--trans-color); font-size: 13px; }
+  #nowText .tr { color: var(--trans-ui); font-size: 13px; }
   #nowText .placeholder { color: var(--label3); font-size: 14px; }
   .w { border-radius: 5px; padding: 0 1px; cursor: pointer; }
   .w.sel { background: var(--tint); color: #fff; }
@@ -90,7 +115,7 @@
   .ctl.on { color: var(--tint); }
   .ctl:active { opacity: .5; }
   .ctl .rate { font-size: 19px; font-weight: 700; height: 27px; line-height: 27px; }
-  #playBtn { width: 66px; height: 66px; border-radius: 50%; background: var(--label); color: #000; display: grid; place-items: center; }
+  #playBtn { width: 66px; height: 66px; border-radius: 50%; background: var(--label); color: var(--bg2); display: grid; place-items: center; }
   #playBtn svg { width: 30px; height: 30px; fill: currentColor; stroke: none; }
   #playBtn:active { transform: scale(.94); }
   .pill-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 16px 16px 0; }
@@ -122,7 +147,7 @@
   .cell.blue { color: var(--tint); } .cell.red { color: var(--red); }
   .cell.muted { color: var(--label2); font-size: 15px; justify-content: center; }
   .badge { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--fill); color: var(--label2); flex: none; }
-  .badge.blue { background: rgba(10,132,255,.2); color: #64a8ff; } .badge.green { background: rgba(48,209,88,.2); color: #5fe07f; }
+  .badge.blue { background: var(--fill); color: var(--tint); } .badge.green { background: rgba(52,199,89,.18); color: var(--green-fg); }
   .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 50px; border-radius: 12px; font-size: 17px; font-weight: 600; }
   .btn-primary { background: var(--tint); color: #fff; } .btn-gray { background: var(--bg3); color: var(--tint); }
   .btn:active { opacity: .7; }
@@ -136,9 +161,9 @@
   /* セグメント */
   .seg { display: flex; background: var(--fill); border-radius: 9px; padding: 2px; }
   .seg button { flex: 1; padding: 6px 0; border-radius: 7px; font-size: 13px; font-weight: 500; }
-  .seg button.on { background: #636366; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  .seg button.on { background: var(--segon); box-shadow: 0 1px 3px var(--shadow); }
   /* スイッチ */
-  input.switch { -webkit-appearance: none; appearance: none; width: 51px; height: 31px; border-radius: 16px; background: #39393d; position: relative; flex: none; transition: background .2s; margin: 0; }
+  input.switch { -webkit-appearance: none; appearance: none; width: 51px; height: 31px; border-radius: 16px; background: var(--switchoff); position: relative; flex: none; transition: background .2s; margin: 0; }
   input.switch::before { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.3); transition: transform .2s; }
   input.switch:checked { background: var(--green); }
   input.switch:checked::before { transform: translateX(20px); }
@@ -151,7 +176,7 @@
 
   /* ===== タブバー ===== */
   #tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; height: var(--tabbar-h); padding-bottom: var(--safe-b);
-            display: flex; background: rgba(22,22,24,.86); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+            display: flex; background: var(--barbg); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
             border-top: .5px solid var(--sep); }
   #tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10px; font-weight: 500; color: #8e8e93; }
   #tabbar button.on { color: var(--tint); }
@@ -161,43 +186,42 @@
   #backdrop { position: fixed; inset: 0; z-index: 90; display: none; }
   #backdrop.show { display: block; } #backdrop.dim { background: rgba(0,0,0,.45); }
   .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 100; max-width: 640px; margin: 0 auto; max-height: 86vh; overflow-y: auto;
-           background: var(--bg2); border-radius: 14px 14px 0 0; padding: 6px 16px calc(18px + var(--safe-b));
-           transform: translateY(105%); transition: transform .32s cubic-bezier(.2,.85,.25,1); box-shadow: 0 -8px 30px rgba(0,0,0,.5); }
+           background: var(--bg); border-radius: 14px 14px 0 0; padding: 6px 16px calc(18px + var(--safe-b));
+           transform: translateY(105%); transition: transform .32s cubic-bezier(.2,.85,.25,1); box-shadow: 0 -8px 30px var(--shadow); }
   .sheet.open { transform: none; }
   .sheet.short { max-height: 62vh; }
   .grab { width: 36px; height: 5px; border-radius: 3px; background: var(--label3); margin: 2px auto 8px; }
   .shead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
   .shead h3 { margin: 0; font-size: 19px; }
   .shead .done { color: var(--tint); font-weight: 600; }
-  .sheet .list { background: var(--bg3); }
-  .sheet .btn-gray { background: #3a3a3c; }
+  .sheet .list { background: var(--bg2); }
 
   /* 辞書 */
   .dword { font-size: 30px; font-weight: 800; }
   .dsub { color: var(--label2); font-size: 15px; }
-  .dja { font-size: 20px; color: var(--trans-color); margin: 6px 0 12px; font-weight: 600; }
+  .dja { font-size: 20px; color: var(--trans-ui); margin: 6px 0 12px; font-weight: 600; }
   .dpos { color: var(--tint); font-size: 13px; font-weight: 600; margin-top: 12px; }
   .sheet ol { margin: 4px 0 0 20px; padding: 0; font-size: 15px; }
   .sheet li { margin-bottom: 4px; }
   .dex { color: var(--label2); font-style: italic; font-size: 13.5px; }
   .actions { display: flex; gap: 8px; margin: 4px 0 6px; flex-wrap: wrap; }
   .actions .btn { flex: 1 1 140px; height: 44px; font-size: 15px; margin: 0; }
-  .roundbtn { width: 36px; height: 36px; border-radius: 50%; background: var(--bg3); color: var(--tint); display: inline-grid; place-items: center; vertical-align: middle; }
+  .roundbtn { width: 36px; height: 36px; border-radius: 50%; background: var(--bg2); color: var(--tint); display: inline-grid; place-items: center; vertical-align: middle; }
   .roundbtn svg.i { width: 18px; height: 18px; }
 
   /* タイミング */
   .offbox { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .offbox .btn { flex: 1; height: 46px; font-size: 15px; margin: 0; }
   #offQ { font-size: 24px; font-weight: 700; min-width: 90px; text-align: center; font-variant-numeric: tabular-nums; }
-  #alignBox { margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--bg3); }
+  #alignBox { margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--bg2); }
   #alignText { font-size: 18px; font-weight: 700; margin: 6px 0 12px; overflow-wrap: anywhere; }
   #alTap { height: 64px; font-size: 18px; }
 
   /* 時刻付けリスト */
-  #lines { max-height: 34vh; overflow: auto; margin-top: 10px; border-radius: 10px; background: var(--bg3); position: relative; }
+  #lines { max-height: 34vh; overflow: auto; margin-top: 10px; border-radius: 10px; background: var(--bg2); position: relative; }
   #lines div { padding: 6px 12px; display: flex; gap: 10px; font-size: 14px; cursor: pointer; }
   #lines div .t { color: var(--label2); font-family: ui-monospace, Menlo, Consolas, monospace; min-width: 64px; }
-  #lines div.on { background: rgba(10,132,255,.25); }
+  #lines div.on { background: var(--fill); }
   #lines div.notime .t { color: var(--red); }
   #lines div.target { outline: 2px solid var(--tint); outline-offset: -2px; }
 
@@ -208,25 +232,25 @@
   .upbtn { color: var(--label2); padding: 6px; flex: none; }
 
   /* 単語帳 */
-  .ja-inline { color: var(--trans-color); margin-left: 8px; font-size: 15px; }
+  .ja-inline { color: var(--trans-ui); margin-left: 8px; font-size: 15px; }
 
   /* 単語カード */
-  #card { position: fixed; inset: 0; z-index: 120; background: rgba(0,0,0,.92); display: none; flex-direction: column; padding: calc(var(--safe-t) + 12px) 16px calc(var(--safe-b) + 16px); }
+  #card { position: fixed; inset: 0; z-index: 120; background: var(--cardbg); display: none; flex-direction: column; padding: calc(var(--safe-t) + 12px) 16px calc(var(--safe-b) + 16px); }
   #card.show { display: flex; }
   #cardBox { flex: 1; display: flex; flex-direction: column; justify-content: center; text-align: center; max-width: 520px; width: 100%; margin: 0 auto; overflow-wrap: anywhere; }
   #cardBox .count { color: var(--label2); font-size: 14px; }
   #cardBox .cw { font-size: 40px; font-weight: 800; margin: 18px 0 8px; }
   #cardBox .cctx { color: var(--label2); font-size: 16px; margin: 6px 0 18px; }
   #cardBox .cctx b { color: var(--label); }
-  #cardBox .ja { font-size: 24px; color: var(--trans-color); font-weight: 700; margin: 8px 0; }
+  #cardBox .ja { font-size: 24px; color: var(--trans-ui); font-weight: 700; margin: 8px 0; }
   #cardBox ol { text-align: left; margin: 10px auto 0; max-width: 440px; color: var(--label2); font-size: 15px; }
   .cardbtns { display: flex; gap: 10px; max-width: 520px; width: 100%; margin: 0 auto; }
   .cardbtns .btn { flex: 1; margin: 0; }
 
   /* トースト・更新バー */
   #toast { position: fixed; left: 50%; top: calc(var(--safe-t) + 12px); transform: translate(-50%, -20px); z-index: 200; opacity: 0; pointer-events: none;
-           max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 14px; background: rgba(58,58,60,.95); font-size: 14px; text-align: center;
-           -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); transition: opacity .25s, transform .25s; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+           max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 14px; background: var(--toastbg); font-size: 14px; text-align: center;
+           -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); transition: opacity .25s, transform .25s; box-shadow: 0 6px 20px var(--shadow); }
   #toast.show { opacity: 1; transform: translate(-50%, 0); }
   #updBar { position: fixed; left: 12px; right: 12px; bottom: calc(var(--tabbar-h) + 10px); z-index: 150; max-width: 616px; margin: 0 auto; display: none;
             align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px 10px 16px; border-radius: 14px; background: var(--tint); font-size: 15px; font-weight: 600; }
@@ -348,6 +372,12 @@
   <div class="inner">
     <div class="nav"><h1>設定</h1></div>
 
+    <div class="shdr">外観</div>
+    <div class="section"><div class="list">
+      <div class="cell"><div class="cmain">モード</div><div class="seg" id="themeSeg" style="width:210px"><button data-v="system">自動</button><button data-v="light">ライト</button><button data-v="dark">ダーク</button></div></div>
+      <div class="cell"><div class="cmain">アクセント色</div><div class="seg" id="accentSeg" style="width:210px"><button data-v="orange">オレンジ</button><button data-v="blue">ブルー</button><button data-v="purple">パープル</button></div></div>
+    </div><div class="sfoot">「自動」は iPhone の設定（ライト／ダーク）に合わせます。オレンジは Brave に近い色です。</div></div>
+
     <div class="shdr">映像の上の歌詞</div>
     <div class="section"><div class="list">
       <div class="cell"><div class="cmain">一度に表示する行数</div><span class="cval" id="ovLinesV"></span>
@@ -389,7 +419,7 @@
       <li>下の歌詞の<b>単語をタップ</b>で意味。<b>単語帳に追加</b>して「カードで復習」</li>
       <li>気に入った曲は右上の <b>☆</b> でプレイリストに保存</li>
     </ol></div>
-    <div class="sfoot"><span id="ver">版: 2026-11-15h</span></div></div>
+    <div class="sfoot"><span id="ver">版: 2026-11-15i</span></div></div>
   </div>
 </section>
 
@@ -487,11 +517,16 @@ let lines = [], trans = [], offsetMs = 0, lastIdx = -2, loopIdx = -1, curVid = n
 let syncMode = false, syncIdx = 0, pendingSeek = null, rate = 1;
 
 /* ---------- 設定 ---------- */
-const DEF = { ovLines: 4, size: 24, dim: 40, pos: 'middle', color: '#ffffff', tcolor: '#ffe08a', nLines: 2, autoNext: true, shuffle: false };
+const DEF = { ovLines: 4, size: 24, dim: 40, pos: 'middle', color: '#ffffff', tcolor: '#ffe08a', nLines: 2, autoNext: true, shuffle: false, theme: 'system', accent: 'orange' };
 const LIM = { ovLines: [1, 8], nLines: [0, 6] };
 let set = Object.assign({}, DEF, loadJSON('lo-set', {}));
 function saveSet() { saveJSON('lo-set', set); applySet(); }
 function applySet() {
+  const de = document.documentElement;
+  if (set.theme === 'system') delete de.dataset.theme; else de.dataset.theme = set.theme;
+  de.dataset.accent = set.accent;
+  document.querySelectorAll('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === set.theme));
+  document.querySelectorAll('#accentSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === set.accent));
   root.setProperty('--lyric-size', set.size + 'px'); root.setProperty('--lyric-color', set.color);
   root.setProperty('--trans-color', set.tcolor); root.setProperty('--dim', set.dim / 100);
   ['top', 'middle', 'bottom'].forEach(p => $('overlay').classList.toggle(p, set.pos === p));
@@ -511,6 +546,8 @@ document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
 $('sizeR').oninput = (e) => { set.size = +e.target.value; saveSet(); };
 $('dimR').oninput = (e) => { set.dim = +e.target.value; saveSet(); };
 document.querySelectorAll('#posSeg button').forEach(b => b.onclick = () => { set.pos = b.dataset.v; saveSet(); });
+document.querySelectorAll('#themeSeg button').forEach(b => b.onclick = () => { set.theme = b.dataset.v; saveSet(); });
+document.querySelectorAll('#accentSeg button').forEach(b => b.onclick = () => { set.accent = b.dataset.v; saveSet(); });
 $('colorI').oninput = (e) => { set.color = e.target.value; saveSet(); };
 $('tcolorI').oninput = (e) => { set.tcolor = e.target.value; saveSet(); };
 $('autoNext').onchange = (e) => { set.autoNext = e.target.checked; saveSet(); };
