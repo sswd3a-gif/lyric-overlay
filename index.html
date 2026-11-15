@@ -230,6 +230,8 @@
   .nowplaying { color: var(--tint); font-size: 12px; font-weight: 600; flex: none; }
   .delbtn { width: 24px; height: 24px; border-radius: 50%; background: var(--red); color: #fff; font-weight: 700; line-height: 22px; text-align: center; flex: none; }
   .upbtn { color: var(--label2); padding: 6px; flex: none; }
+  .listicon { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: var(--bg3); color: var(--label3); display: grid; place-items: center; flex: none; }
+  .check { color: var(--tint); width: 22px !important; height: 22px !important; }
 
   /* 単語帳 */
   .ja-inline { color: var(--trans-ui); margin-left: 8px; font-size: 15px; }
@@ -341,13 +343,26 @@
 <!-- ======================= プレイリスト ======================= -->
 <section class="screen layer" id="scr-list" data-tab="list">
   <div class="inner">
-    <div class="nav"><div class="navrow"><span></span><button class="navbtn" id="plEdit">編集</button></div><h1>プレイリスト</h1></div>
-    <div class="section"><div class="list" id="pl"></div></div>
-    <div class="section">
-      <div class="list">
-        <label class="cell"><div class="cmain">曲が終わったら次の曲へ</div><input type="checkbox" class="switch" id="autoNext"></label>
-        <label class="cell"><div class="cmain">ランダムな順で再生</div><input type="checkbox" class="switch" id="shuffle"></label>
+    <!-- プレイリスト一覧 -->
+    <div id="plIndex">
+      <div class="nav"><div class="navrow"><span></span><button class="navbtn" id="plNew">＋ 新規</button></div><h1>プレイリスト</h1></div>
+      <div class="section"><div class="list" id="plLists"></div></div>
+      <div class="section">
+        <div class="list">
+          <label class="cell"><div class="cmain">曲が終わったら次の曲へ</div><input type="checkbox" class="switch" id="autoNext"></label>
+          <label class="cell"><div class="cmain">ランダムな順で再生</div><input type="checkbox" class="switch" id="shuffle"></label>
+        </div>
       </div>
+    </div>
+    <!-- 1つのプレイリストの中身 -->
+    <div id="plDetail" hidden>
+      <div class="nav"><div class="navrow"><button class="navbtn" id="plBack">‹ プレイリスト</button><button class="navbtn" id="plEdit">編集</button></div><h1 id="plName"></h1></div>
+      <div class="section" id="plPlayBox"><button class="btn btn-primary" id="plPlayAll"><svg class="i" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>再生</button></div>
+      <div class="section"><div class="list" id="pl"></div></div>
+      <div class="section" id="plManage" hidden><div class="list">
+        <button class="cell blue" id="plRename">名前を変更</button>
+        <button class="cell red" id="plDelete">このプレイリストを削除</button>
+      </div></div>
     </div>
   </div>
 </section>
@@ -419,7 +434,7 @@
       <li>下の歌詞の<b>単語をタップ</b>で意味。<b>単語帳に追加</b>して「カードで復習」</li>
       <li>気に入った曲は右上の <b>☆</b> でプレイリストに保存</li>
     </ol></div>
-    <div class="sfoot"><span id="ver">版: 2026-11-15j</span></div></div>
+    <div class="sfoot"><span id="ver">版: 2026-11-15k</span></div></div>
   </div>
 </section>
 
@@ -443,6 +458,14 @@
     <input class="field" id="urlSheet" placeholder="または URL を入力" inputmode="url" autocomplete="off" autocapitalize="off">
     <button class="navbtn" style="padding:0 14px" data-openfrom="urlSheet">開く</button>
   </div>
+</div>
+
+<div class="sheet short" id="sheet-addpl">
+  <div class="grab"></div>
+  <div class="shead"><h3>プレイリストに追加</h3><button class="done" data-close>完了</button></div>
+  <div class="list" id="addplList"></div>
+  <div class="list" style="margin-top:12px"><button class="cell blue" id="addplNew">＋ 新規プレイリスト…</button></div>
+  <div class="sfoot" style="margin:10px 0 0">タップでリストに入れる／外す。歌詞・和訳・タイミングも一緒に保存されます。</div>
 </div>
 
 <div class="sheet short" id="sheet-dict">
@@ -470,7 +493,7 @@
     </div>
     <div class="dsub" style="font-size:13px">もう過ぎてしまったら「次の行」で、これから歌われる行に変えてください。</div>
   </div>
-  <div class="sfoot" style="margin:12px 0 0">合ったら右上の ☆ で保存すると、この曲のタイミングとして記録されます。</div>
+  <div class="sfoot" style="margin:12px 0 0">プレイリストに入っている曲は、合わせたタイミングが自動で保存されます。</div>
 </div>
 
 <div class="sheet" id="sheet-edit">
@@ -676,7 +699,7 @@ function updatePlayUI() {
   $('stage').hidden = !has; $('empty').hidden = has; $('controls').hidden = !has; $('lyricChip').hidden = !has;
   $('nowCard').hidden = !has || set.nLines === 0;
   $('songTitle').textContent = has ? (songName() || 'Lyric') : 'Lyric';
-  const saved = has && playlist.some(p => p.vid === curVid);
+  const saved = has && inAnyList(curVid);
   $('favIcon').style.fill = saved ? 'currentColor' : 'none';
   $('lyricChipText').textContent = lines.length ? '♪ 歌詞：' + (lyricSrc || '手入力') : '♪ 歌詞が見つかっていません';
 }
@@ -787,7 +810,7 @@ function applyLyrics(silent) {
   }
 }
 $('editOpen').onclick = () => openSheet('sheet-edit');
-$('applyBtn').onclick = () => { lyricSrc = lyricSrc || '手入力'; applyLyrics(); closeSheet(); showTab('play'); };
+$('applyBtn').onclick = () => { lyricSrc = lyricSrc || '手入力'; applyLyrics(); autoSaveSong(); closeSheet(); showTab('play'); };
 $('fileBtn').onclick = () => $('lrcFile').click();
 $('lrcFile').onchange = async (e) => { const f = e.target.files[0]; if (f) { $('lyricText').value = await f.text(); lyricSrc = f.name; applyLyrics(); } e.target.value = ''; };
 
@@ -833,7 +856,7 @@ function useResult(it, auto) {
   $('lyricText').value = it.syncedLyrics || it.plainLyrics || ''; $('transText').value = '';
   lyricSrc = `${it.artistName} — ${it.trackName}`; setOffset(0); applyLyrics(true);
   if (auto) return;
-  showTab('play');
+  autoSaveSong(); showTab('play');
   toast(it.syncedLyrics ? '歌詞をセットしました' : '文字だけの歌詞です。「自分で入力」から時刻を付けられます', 3500);
 }
 $('searchBtn').onclick = () => runSearch(false);
@@ -898,9 +921,9 @@ function setOffset(ms) {
   $('offQ').textContent = (offsetMs > 0 ? '+' : offsetMs < 0 ? '' : '±') + (offsetMs / 1000).toFixed(1) + '秒';
   lastIdx = -2;
 }
-$('offset').oninput = (e) => setOffset(+e.target.value);
-$('offEarly').onclick = () => setOffset(offsetMs - 500);
-$('offLate').onclick = () => setOffset(offsetMs + 500);
+$('offset').oninput = (e) => { setOffset(+e.target.value); autoSaveSong(); };
+$('offEarly').onclick = () => { setOffset(offsetMs - 500); autoSaveSong(); };
+$('offLate').onclick = () => { setOffset(offsetMs + 500); autoSaveSong(); };
 let alignIdx = -1;
 function prevSung(i) { for (let j = i - 1; j >= 0; j--) if (lines[j].t !== null && lines[j].text) return j; return -1; }
 function nextSung(i) { for (let j = i + 1; j < lines.length; j++) if (lines[j].t !== null && lines[j].text) return j; return -1; }
@@ -919,7 +942,7 @@ $('alPrev').onclick = () => { const j = prevSung(alignIdx); if (j >= 0) { alignI
 $('alTap').addEventListener('pointerdown', (e) => {
   e.preventDefault(); if (alignIdx < 0) return;
   setOffset((nowSec() - 0.15 - lines[alignIdx].t) * 1000);   // 0.15秒 = タップの反応遅れ補正
-  alignIdx = -1; showAlign(); toast(`✓ タイミングを ${(offsetMs / 1000).toFixed(1)} 秒に合わせました`);
+  alignIdx = -1; showAlign(); autoSaveSong(); toast(`✓ タイミングを ${(offsetMs / 1000).toFixed(1)} 秒に合わせました`);
 });
 
 /* ---------- 時刻付け（タップ同期） ---------- */
@@ -1070,8 +1093,7 @@ function jumpTo(v) {
   const t = v.t || 0;
   if (v.vid === curVid && player && player.seekTo) { player.seekTo(Math.max(0, t - 1), true); player.playVideo(); return; }
   pendingSeek = t;
-  const i = playlist.findIndex(p => p.vid === v.vid);
-  if (i >= 0) playEntry(i); else { loadVideo(v.vid, false); }
+  if (lib.songs[v.vid]) playSong(v.vid, null); else { loadVideo(v.vid, false); }
 }
 function renderVocab() {
   const box = $('vocab'), q = $('vocabSearch').value.trim().toLowerCase();
@@ -1139,69 +1161,173 @@ function showCard(answer) {
   } else $('cShow').onclick = () => showCard(true);
 }
 
-/* ---------- プレイリスト ---------- */
-let playlist = loadJSON('lo-playlist', []), plEditing = false;
-function savePl() { saveJSON('lo-playlist', playlist); renderPl(); updatePlayUI(); }
+/* ---------- プレイリスト（複数） ----------
+   lib.songs : 動画ID → 曲データ（歌詞・和訳・タイミング）。どのリストから再生しても同じデータを使う
+   lib.lists : [{ id, name, vids: [動画ID…] }] */
+const LIB_KEY = 'lo-lib';
+let lib = loadJSON(LIB_KEY, null);
+if (!lib || !Array.isArray(lib.lists)) {
+  // 旧形式（プレイリスト1つ）から移行。旧データ（lo-playlist）は消さずに残す
+  const old = loadJSON('lo-playlist', []);
+  lib = { songs: {}, lists: [{ id: newListId(), name: 'マイリスト', vids: [] }] };
+  old.filter(x => x && x.vid).forEach(x => { lib.songs[x.vid] = x; if (!lib.lists[0].vids.includes(x.vid)) lib.lists[0].vids.push(x.vid); });
+  saveJSON(LIB_KEY, lib);
+}
+let openListId = null, playListId = null, plEditing = false;
+function newListId() { return 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function getList(id) { return lib.lists.find(l => l.id === id); }
+function inAnyList(vid) { return lib.lists.some(l => l.vids.includes(vid)); }
+function gcSongs() { const used = new Set(lib.lists.flatMap(l => l.vids)); Object.keys(lib.songs).forEach(v => { if (!used.has(v)) delete lib.songs[v]; }); }
+function saveLib() { saveJSON(LIB_KEY, lib); renderPl(); updatePlayUI(); }
+function thumbUrl(vid) { return `https://i.ytimg.com/vi/${encodeURIComponent(vid)}/mqdefault.jpg`; }
+function currentEntry() {
+  const d = (player && player.getVideoData && player.getVideoData()) || {};
+  const artist = $('qArtist').value.trim(), title = $('qTitle').value.trim() || d.title || curVid;
+  return { vid: curVid, artist, title, name: artist ? `${artist} — ${title}` : title, lyrics: $('lyricText').value, trans: $('transText').value,
+           offset: offsetMs, src: lyricSrc, saved: Date.now() };
+}
+// 保存済みの曲なら、タイミングや歌詞の変更を自動で保存する
+function autoSaveSong() { if (curVid && inAnyList(curVid)) { lib.songs[curVid] = currentEntry(); saveJSON(LIB_KEY, lib); } }
+function askName(def) { const n = prompt('プレイリストの名前', def); return n && n.trim() ? n.trim().slice(0, 40) : null; }
+
 function renderPl() {
-  const box = $('pl'); box.textContent = '';
-  if (!playlist.length) { box.innerHTML = '<div class="cell muted">再生画面の右上の ☆ で曲を保存できます</div>'; return; }
-  playlist.forEach((it, i) => {
-    const c = document.createElement('div'); c.className = 'cell tap';
-    if (plEditing) { const del = document.createElement('button'); del.className = 'delbtn'; del.textContent = '−'; del.onclick = (e) => { e.stopPropagation(); if (confirm(`「${it.title || it.name}」を削除しますか？`)) { playlist.splice(i, 1); savePl(); } }; c.appendChild(del); }
-    const img = document.createElement('img'); img.className = 'thumb'; img.loading = 'lazy'; img.alt = ''; img.src = `https://i.ytimg.com/vi/${encodeURIComponent(it.vid)}/mqdefault.jpg`; c.appendChild(img);
-    const m = document.createElement('div'); m.className = 'cmain';
-    m.innerHTML = '<div class="ctitle"></div><div class="csub"></div>';
-    m.firstChild.textContent = it.title || it.name; m.lastChild.textContent = it.artist || (it.lyrics ? '' : '歌詞なし');
-    c.appendChild(m);
-    if (it.vid === curVid && !plEditing) { const np = document.createElement('span'); np.className = 'nowplaying'; np.textContent = '再生中'; c.appendChild(np); }
-    if (plEditing && i > 0) { const up = document.createElement('button'); up.className = 'upbtn'; up.textContent = '↑'; up.onclick = (e) => { e.stopPropagation(); [playlist[i - 1], playlist[i]] = [playlist[i], playlist[i - 1]]; savePl(); }; c.appendChild(up); }
-    if (!plEditing) c.onclick = () => playEntry(i);
+  const list = openListId && getList(openListId);
+  $('plIndex').hidden = !!list; $('plDetail').hidden = !list;
+  if (!list) { openListId = null; renderPlIndex(); } else renderPlDetail(list);
+}
+function renderPlIndex() {
+  const box = $('plLists'); box.textContent = '';
+  if (!lib.lists.length) { box.innerHTML = '<div class="cell muted">右上の「＋ 新規」でプレイリストを作れます</div>'; return; }
+  lib.lists.forEach(l => {
+    const c = document.createElement('button'); c.className = 'cell';
+    c.innerHTML = (l.vids[0] ? `<img class="listicon" alt="" loading="lazy" src="${thumbUrl(l.vids[0])}">`
+                             : `<div class="listicon"><svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg></div>`) +
+                  `<div class="cmain"><div class="ctitle"></div><div class="csub"></div></div>` +
+                  (l.id === playListId ? '<span class="nowplaying">再生中</span>' : '') + `<svg class="i chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>`;
+    c.querySelector('.ctitle').textContent = l.name; c.querySelector('.csub').textContent = `${l.vids.length} 曲`;
+    c.onclick = () => { openListId = l.id; plEditing = false; renderPl(); $('scr-list').scrollTop = 0; };
     box.appendChild(c);
   });
 }
-$('plEdit').onclick = () => { plEditing = !plEditing; $('plEdit').textContent = plEditing ? '完了' : '編集'; $('plEdit').style.fontWeight = plEditing ? '600' : ''; renderPl(); };
-function playEntry(i) {
-  const it = playlist[i]; if (!it) return;
+function renderPlDetail(l) {
+  $('plName').textContent = l.name;
+  $('plEdit').textContent = plEditing ? '完了' : '編集'; $('plEdit').style.fontWeight = plEditing ? '600' : '';
+  $('plManage').hidden = !plEditing; $('plPlayBox').hidden = plEditing || !l.vids.length;
+  const box = $('pl'); box.textContent = '';
+  if (!l.vids.length) { box.innerHTML = '<div class="cell muted">再生画面の右上の ☆ からこのリストに曲を追加できます</div>'; return; }
+  l.vids.forEach((vid, i) => {
+    const it = lib.songs[vid] || { vid, title: vid };
+    const c = document.createElement('div'); c.className = 'cell tap';
+    if (plEditing) {
+      const del = document.createElement('button'); del.className = 'delbtn'; del.textContent = '−';
+      del.onclick = (e) => { e.stopPropagation(); if (confirm(`「${it.title || it.name}」をこのリストから外しますか？`)) { l.vids.splice(i, 1); gcSongs(); saveLib(); } };
+      c.appendChild(del);
+    }
+    const img = document.createElement('img'); img.className = 'thumb'; img.loading = 'lazy'; img.alt = ''; img.src = thumbUrl(vid); c.appendChild(img);
+    const m = document.createElement('div'); m.className = 'cmain'; m.innerHTML = '<div class="ctitle"></div><div class="csub"></div>';
+    m.firstChild.textContent = it.title || it.name; m.lastChild.textContent = it.artist || (it.lyrics ? '' : '歌詞なし');
+    c.appendChild(m);
+    if (vid === curVid && l.id === playListId && !plEditing) { const np = document.createElement('span'); np.className = 'nowplaying'; np.textContent = '再生中'; c.appendChild(np); }
+    if (plEditing && i > 0) {
+      const up = document.createElement('button'); up.className = 'upbtn'; up.textContent = '↑';
+      up.onclick = (e) => { e.stopPropagation(); [l.vids[i - 1], l.vids[i]] = [l.vids[i], l.vids[i - 1]]; saveLib(); };
+      c.appendChild(up);
+    }
+    if (!plEditing) c.onclick = () => playSong(vid, l.id);
+    box.appendChild(c);
+  });
+}
+$('plBack').onclick = () => { openListId = null; plEditing = false; renderPl(); };
+$('plEdit').onclick = () => { plEditing = !plEditing; renderPl(); };
+$('plNew').onclick = () => { const n = askName(`プレイリスト ${lib.lists.length + 1}`); if (n) { lib.lists.push({ id: newListId(), name: n, vids: [] }); saveLib(); toast(`「${n}」を作りました`); } };
+$('plRename').onclick = () => { const l = getList(openListId); const n = l && askName(l.name); if (n) { l.name = n; saveLib(); } };
+$('plDelete').onclick = () => {
+  const l = getList(openListId); if (!l) return;
+  if (!confirm(`プレイリスト「${l.name}」を削除しますか？（曲は他のリストからは消えません）`)) return;
+  lib.lists = lib.lists.filter(x => x !== l); if (playListId === l.id) playListId = null;
+  gcSongs(); openListId = null; plEditing = false; saveLib();
+};
+$('plPlayAll').onclick = () => {
+  const l = getList(openListId); if (!l || !l.vids.length) return;
+  const i = set.shuffle ? Math.floor(Math.random() * l.vids.length) : 0;
+  playSong(l.vids[i], l.id);
+};
+function playSong(vid, listId) {
+  const it = lib.songs[vid]; if (!it) return;
+  if (listId) playListId = listId;
+  else if (!getList(playListId) || !getList(playListId).vids.includes(vid)) { const l = lib.lists.find(x => x.vids.includes(vid)); playListId = l ? l.id : null; }
   $('qArtist').value = it.artist || ''; $('qTitle').value = it.title || '';
   $('lyricText').value = it.lyrics || ''; $('transText').value = it.trans || '';
   lyricSrc = it.src || (it.lyrics ? 'プレイリスト' : ''); autoSearchFor = null;
-  setOffset(it.offset || 0); applyLyrics(true); loadVideo(it.vid, true); showTab('play');
+  setOffset(it.offset || 0); applyLyrics(true); loadVideo(vid, true); showTab('play');
 }
 function nextSong() {
-  if (!playlist.length) return toast('プレイリストに曲がありません');
-  const cur = playlist.findIndex(p => p.vid === curVid);
+  const l = getList(playListId) || lib.lists.find(x => x.vids.includes(curVid)) || lib.lists.find(x => x.vids.length);
+  if (!l || !l.vids.length) return toast('プレイリストに曲がありません');
+  const cur = l.vids.indexOf(curVid);
   let n;
-  if (set.shuffle && playlist.length > 1) { do { n = Math.floor(Math.random() * playlist.length); } while (n === cur); }
+  if (set.shuffle && l.vids.length > 1) { do { n = Math.floor(Math.random() * l.vids.length); } while (n === cur); }
   else n = cur + 1;
-  if (n >= playlist.length) return toast('プレイリストの最後の曲です');
-  playEntry(n);
+  if (n >= l.vids.length) return toast(`「${l.name}」の最後の曲です`);
+  playSong(l.vids[n], l.id);
 }
 $('nextBtn').onclick = nextSong;
+
+// ☆ → どのリストに入れるかを選ぶシート
+function renderAddPl() {
+  const box = $('addplList'); box.textContent = '';
+  if (!lib.lists.length) { box.innerHTML = '<div class="cell muted">下の「新規プレイリスト」で作ってください</div>'; return; }
+  lib.lists.forEach(l => {
+    const on = l.vids.includes(curVid);
+    const c = document.createElement('button'); c.className = 'cell';
+    c.innerHTML = `<div class="cmain"><div class="ctitle"></div><div class="csub"></div></div>` +
+                  (on ? '<svg class="i check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : '<span style="width:22px"></span>');
+    c.querySelector('.ctitle').textContent = l.name; c.querySelector('.csub').textContent = `${l.vids.length} 曲`;
+    c.onclick = () => {
+      if (on) { l.vids = l.vids.filter(v => v !== curVid); toast(`「${l.name}」から外しました`); }
+      else { l.vids.push(curVid); lib.songs[curVid] = currentEntry(); toast(`★「${l.name}」に追加しました`); }
+      gcSongs(); saveLib(); renderAddPl();
+    };
+    box.appendChild(c);
+  });
+}
 $('favBtn').onclick = () => {
   if (!curVid) return toast('先に動画を開いてください');
-  const d = (player && player.getVideoData && player.getVideoData()) || {};
-  const artist = $('qArtist').value.trim(), title = $('qTitle').value.trim() || d.title || curVid;
-  const entry = { vid: curVid, artist, title, name: artist ? `${artist} — ${title}` : title, lyrics: $('lyricText').value, trans: $('transText').value,
-                  offset: offsetMs, src: lyricSrc, saved: Date.now() };
-  const i = playlist.findIndex(p => p.vid === curVid);
-  if (i >= 0) playlist[i] = entry; else playlist.push(entry);
-  savePl(); toast(i >= 0 ? 'プレイリストの内容を更新しました' : '★ プレイリストに保存しました');
+  if (inAnyList(curVid)) { lib.songs[curVid] = currentEntry(); saveJSON(LIB_KEY, lib); }   // 保存済みなら最新の状態で上書き
+  renderAddPl(); openSheet('sheet-addpl');
+};
+$('addplNew').onclick = () => {
+  const n = askName(`プレイリスト ${lib.lists.length + 1}`); if (!n) return;
+  lib.lists.push({ id: newListId(), name: n, vids: [curVid] }); lib.songs[curVid] = currentEntry();
+  saveLib(); renderAddPl(); toast(`★「${n}」を作って追加しました`);
 };
 
 /* ---------- バックアップ・書き出し ---------- */
 function download(name, body, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([body], { type })); a.download = name; a.click(); }
-$('plExport').onclick = () => download('lyric-overlay-backup.json', JSON.stringify({ version: 2, playlist, vocab }, null, 1), 'application/json');
+$('plExport').onclick = () => download('lyric-overlay-backup.json', JSON.stringify({ version: 3, lib, vocab }, null, 1), 'application/json');
 $('plImportBtn').onclick = () => $('plImport').click();
 $('plImport').onchange = async (e) => {
   const f = e.target.files[0]; if (!f) return;
   try {
     const data = JSON.parse(await f.text());
-    const pl = Array.isArray(data) ? data : (data.playlist || []), vc = Array.isArray(data) ? [] : (data.vocab || []);
-    if (!Array.isArray(pl) || !Array.isArray(vc)) throw new Error('形式が違います');
+    const vc = Array.isArray(data) ? [] : (data.vocab || []);
+    if (!Array.isArray(vc)) throw new Error('形式が違います');
     let a1 = 0, a2 = 0;
-    pl.filter(x => x && x.vid).forEach(x => { const i = playlist.findIndex(p => p.vid === x.vid); if (i >= 0) playlist[i] = x; else { playlist.push(x); a1++; } });
+    const addSong = (x) => { if (!lib.songs[x.vid]) a1++; lib.songs[x.vid] = x; };
+    const mergeList = (name, id, vids) => {
+      let l = (id && getList(id)) || lib.lists.find(x => x.name === name);
+      if (!l) { l = { id: id || newListId(), name, vids: [] }; lib.lists.push(l); }
+      vids.forEach(v => { if (!l.vids.includes(v)) l.vids.push(v); });
+    };
+    if (data && data.lib && Array.isArray(data.lib.lists)) {          // 新形式（複数リスト）
+      Object.values(data.lib.songs || {}).filter(x => x && x.vid).forEach(addSong);
+      data.lib.lists.forEach(l => mergeList(l.name, l.id, (l.vids || []).filter(v => lib.songs[v])));
+    } else {                                                          // 旧形式（1つのリスト）
+      const pl = (Array.isArray(data) ? data : (data.playlist || [])).filter(x => x && x.vid);
+      pl.forEach(addSong); mergeList('マイリスト', null, pl.map(x => x.vid));
+    }
     vc.filter(x => x && x.w).forEach(x => { const i = vocab.findIndex(v => v.w === x.w); if (i >= 0) vocab[i] = x; else { vocab.push(x); a2++; } });
-    savePl(); saveVocab(); toast(`復元しました（新しく ${a1} 曲・${a2} 語）`);
+    saveLib(); saveVocab(); toast(`復元しました（新しく ${a1} 曲・${a2} 語）`);
   } catch (err) { toast('復元に失敗しました: ' + err.message); }
   e.target.value = '';
 };
