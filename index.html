@@ -116,6 +116,12 @@
       <select id="rate"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option></select>
       <button id="favBtn">★ 保存</button>
     </div>
+    <div class="row">
+      <button id="offEarly" title="歌詞の表示を0.5秒早める">◀ 歌詞を早く</button>
+      <span id="offQ" style="min-width:56px;text-align:center">±0.0秒</span>
+      <button id="offLate" title="歌詞の表示を0.5秒遅らせる">歌詞を遅く ▶</button>
+      <button id="hereBtn" title="次の行が歌い始めた瞬間に押すと、ズレを自動で合わせます">🎯 次の行が今！</button>
+    </div>
     <div id="nowLine">
       <div id="nowText"><span class="hint">ここに今の歌詞が出ます。単語をタップすると意味が見られます</span></div>
       <div id="nowTrans"></div>
@@ -149,7 +155,7 @@
         <label><input type="checkbox" id="showNext" checked> 次の行</label>
       </div>
       <div class="row">
-        <label>オフセット</label><input type="range" id="offset" min="-5000" max="5000" step="50" value="0" style="flex:1">
+        <label>オフセット</label><input type="range" id="offset" min="-30000" max="30000" step="50" value="0" style="flex:1">
         <span id="offsetV">0 ms</span>
       </div>
     </div>
@@ -301,10 +307,19 @@ $('searchBtn').onclick = async () => {
     const r = await fetch('https://lrclib.net/api/search?' + q);
     const list = await r.json();
     $('results').textContent = list.length ? '' : '見つかりませんでした（曲名だけで再検索してみてください）';
+    // 動画の長さに近い（＝同じバージョンの可能性が高い）同期歌詞を上に並べる
+    const vd = player && player.getDuration ? player.getDuration() : 0;
+    const score = (it) => (it.syncedLyrics ? 0 : 10000) + (vd && it.duration ? Math.abs(it.duration - vd) : 5000);
+    list.sort((a, b) => score(a) - score(b));
     list.slice(0, 12).forEach(it => {
       const d = document.createElement('div');
       const dur = it.duration ? ` ${Math.floor(it.duration / 60)}:${String(Math.round(it.duration % 60)).padStart(2, '0')}` : '';
-      d.textContent = `${it.syncedLyrics ? '⏱' : '📝'} ${it.artistName} — ${it.trackName}${dur}`;
+      let diff = '';
+      if (vd && it.duration) {
+        const s = Math.round(vd - it.duration);
+        diff = Math.abs(s) <= 3 ? '  ✅長さ一致' : `  （動画のほうが${s > 0 ? s + '秒長い' : -s + '秒短い'}）`;
+      }
+      d.textContent = `${it.syncedLyrics ? '⏱' : '📝'} ${it.artistName} — ${it.trackName}${dur}${diff}`;
       d.title = it.syncedLyrics ? '同期歌詞あり' : 'テキストのみ（タップ同期が必要）';
       d.onclick = () => { $('lyricText').value = it.syncedLyrics || it.plainLyrics || ''; applyLyrics(); };
       $('results').appendChild(d);
@@ -313,7 +328,24 @@ $('searchBtn').onclick = async () => {
 };
 
 /* ---------- 再生同期 ---------- */
-function nowSec() { return player && player.getCurrentTime ? player.getCurrentTime() : 0; }
+// YouTube の getCurrentTime() は数百ms〜1秒ごとにしか更新されない（特にスマホ）ため、
+// 再生中は前回の更新からの経過時間で補間して、歌詞の切り替えを滑らかで正確にする
+let lastYt = -1, lastWall = 0;
+function nowSec() {
+  if (!player || !player.getCurrentTime) return 0;
+  const yt = player.getCurrentTime() || 0, w = performance.now();
+  const playing = player.getPlayerState && player.getPlayerState() === 1;
+  if (yt !== lastYt || !playing) { lastYt = yt; lastWall = w; return yt; }
+  const rate = (player.getPlaybackRate && player.getPlaybackRate()) || 1;
+  return yt + Math.min(1.5, (w - lastWall) / 1000) * rate;
+}
+function setOffset(ms) {
+  offsetMs = Math.round(ms / 10) * 10;
+  $('offset').value = Math.max(-30000, Math.min(30000, offsetMs));
+  const txt = (offsetMs > 0 ? '+' : offsetMs < 0 ? '' : '±') + (offsetMs / 1000).toFixed(1) + '秒';
+  $('offsetV').textContent = (offsetMs > 0 ? '+' : '') + offsetMs + ' ms'; $('offQ').textContent = txt;
+  lastIdx = -2;
+}
 function currentIndex(t) {
   let idx = -1;
   for (let i = 0; i < lines.length; i++) { if (lines[i].t !== null && lines[i].t <= t) idx = i; else if (lines[i].t !== null) break; }
@@ -428,7 +460,17 @@ $('pos').onchange = (e) => $('overlay').classList.toggle('top', e.target.value =
 $('color').oninput = (e) => root.setProperty('--lyric-color', e.target.value);
 $('tcolor').oninput = (e) => root.setProperty('--trans-color', e.target.value);
 $('showNext').onchange = () => { lastIdx = -2; };
-$('offset').oninput = (e) => { offsetMs = +e.target.value; $('offsetV').textContent = (offsetMs > 0 ? '+' : '') + offsetMs + ' ms'; lastIdx = -2; };
+$('offset').oninput = (e) => setOffset(+e.target.value);
+$('offEarly').onclick = () => setOffset(offsetMs - 500);
+$('offLate').onclick = () => setOffset(offsetMs + 500);
+$('hereBtn').onclick = () => {
+  if (!lines.length) return status('先に歌詞を読み込んでください');
+  const i = currentIndex(nowSec() - offsetMs / 1000);
+  const j = i < 0 ? lines.findIndex(l => l.t !== null) : nextTimed(i);
+  if (j < 0) return status('次の行がありません');
+  setOffset((nowSec() - lines[j].t) * 1000);
+  status(`ズレを ${(offsetMs / 1000).toFixed(1)} 秒に合わせました。「★ 保存」でこの曲の設定として残せます`);
+};
 function status(s) { $('status').textContent = s; }
 
 /* ---------- 学習用コントロール ---------- */
@@ -574,7 +616,7 @@ function playEntry(i) {
   $('url').value = 'https://youtu.be/' + it.vid;
   $('qArtist').value = it.artist || ''; $('qTitle').value = it.title || '';
   $('lyricText').value = it.lyrics || ''; $('transText').value = it.trans || '';
-  offsetMs = it.offset || 0; $('offset').value = offsetMs; $('offsetV').textContent = (offsetMs > 0 ? '+' : '') + offsetMs + ' ms';
+  setOffset(it.offset || 0);
   applyLyrics(); loadVideo(it.vid);
   status(`▶ ${it.name}`);
 }
